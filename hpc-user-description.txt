@@ -1,0 +1,3 @@
+I was in your excelent guest lecture in INB375 today.
+A big part of the cource is a project.
+I would like to write a solver for PDEs, specifically the Poisson Equation, using OpenMP and MPI.
