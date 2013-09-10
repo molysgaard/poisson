@@ -1,5 +1,5 @@
 summa: summa.c
-	mpicc summa.c -lblas -llapack -o summa
+	mpicc -O2 summa.c -lblas -llapack -o summa
 
 run: summa
 	mpirun -n 4 summa

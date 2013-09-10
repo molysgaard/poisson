@@ -1,0 +1,52 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage{cancel} % for å kunne stryke ledd
+\usepackage{amsmath} % for align* og matte generelt
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage[strict]{changepage}
+\usepackage{bm}% for bold matte
+\usepackage{subcaption}
+\usepackage{xfrac} % for å kunne skrive 2/3 brøker
+\usepackage{hyperref} % for URLS
+
+
+\newcommand{\D}[2]{\ensuremath{\frac{\partial #1}{\partial #2}}}
+\newcommand{\dd}[2]{\ensuremath{\frac{\partial^2 #1}{\partial #2^2}}}
+\newcommand{\ddd}[2]{\ensuremath{\frac{\partial^3 #1}{\partial #2^3}}}
+
+\title{Semester project \\ TMA4212 Numerical solution of differential equations by difference methods }
+\author{Candidate no. 10059,10044 and 10012.}
+\date{April 2013}
+
+\begin{document}
+
+\maketitle
+
+\section{Problem description and motivation}
+We're interested in discretizing and simulating the general wave equation
+
+\begin{thebibliography}{9}
+
+\bibitem{engquist_majda}
+  Bjørn Engquist and Andrew Majda (1977).
+  \emph{Absorbing Boundary Conditions for the Numerical Simulation of Waves}
+  (Mathematics of Computation, Volume 31, Number 139,
+  July 1977, Pages 629-651).
+
+\bibitem{note}
+  Brynjulf Owren
+  \emph{TMA4212 Numerical solution of partial differential equations with finite difference methods}
+  (February 24, 2011).
+
+\bibitem{blas}
+  \url{http://www.netlib.org/blas/}
+
+\bibitem{lapack}
+  \url{http://www.netlib.org/lapack/}
+
+\end{thebibliography}
+
+\end{document}
+
