@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include <math.h>
 
 #define A(i,j) (a[j*lda + i])
 #define B(i,j) (b[j*ldb + i])
@@ -79,18 +80,6 @@ void pdgemm(m, n, k, nb, alpha, a, lda, b, ldb,
   }
 
   free(temp);
-
-  if(rank==0){
-    double *result = malloc(m*n*sizeof(double));
-    int MPI_Gather(void *sendbuf, int sendcnt, MPI_Datatype sendtype, 
-                   void *recvbuf, int recvcnt, MPI_Datatype recvtype, 
-                   int root, MPI_Comm comm)
-  }
-  else{
-    int MPI_Gather(void *sendbuf, int sendcnt, MPI_Datatype sendtype, 
-                   void *recvbuf, int recvcnt, MPI_Datatype recvtype, 
-                   int root, MPI_Comm comm)
-  }
 }
 
 RING_Bcast(double *buf, int count, MPI_Datatype type, int root, MPI_Comm comm){
@@ -107,14 +96,25 @@ RING_Bcast(double *buf, int count, MPI_Datatype type, int root, MPI_Comm comm){
 
 printMat(double* a, int n, int m){
   int i,j;
-  int lda = 2;
-  int ldb = 2;
-  int ldc = 2;
   for(i=0; i<n; i++){
     for(j=0; j<m; j++){
-      printf("%.2f ", A(i,j));
+      printf("%.2f ", a[i*m+j]);
     }
     printf("\n");
+  }
+}
+
+struct point_t {
+  int i;
+  int j;
+};
+
+void* mapBlock(double* a, int aWidth, int blockWidth, int blockHeight, double* b){
+  int i,j;
+  for(i=0; i<blockWidth; i++){
+    for(j=0; j<blockHeight; j++){
+      a[aWidth*i+j] = b[blockWidth*i+j];
+    }
   }
 }
 
@@ -125,18 +125,18 @@ int main(int argc, char* argv[]){
   MPI_Comm_rank (MPI_COMM_WORLD, &rank);  /* get current process id */
   MPI_Comm_size (MPI_COMM_WORLD, &size);  /* get number of processes */
 
-  int big = 4000;
-  int small = 2000;
+  int big = 4;
+  int small = 2;
 
   int m=big, n=big, k=big;
   double alpha=1.0;
   double beta=0.0;
-  int m_a[] = {small,small};
-  int n_a[] = {small,small};
-  int m_b[] = {small,small};
-  int n_b[] = {small,small};
-  int m_c[] = {small,small};
-  int n_c[] = {small,small};
+  int m_a[] = {small,small,small,small};
+  int n_a[] = {small,small,small,small};
+  int m_b[] = {small,small,small,small};
+  int n_b[] = {small,small,small,small};
+  int m_c[] = {small,small,small,small};
+  int n_c[] = {small,small,small,small};
   int lda = small;
   int ldb = small;
   int ldc = small;
@@ -177,13 +177,32 @@ int main(int argc, char* argv[]){
   pdgemm(m, n, k, nb, alpha, a, lda, b, ldb,
     beta, c, ldc, m_a, n_a, m_b, n_b, m_c, n_c,
     comm_row, comm_col, work1, work2);
+
+
+  double *tmp;
+  if(rank==0){
+    tmp = malloc(m*n*sizeof(double));
+  }
+  MPI_Gather(c, m_c[rank]*n_c[rank], MPI_DOUBLE, tmp, small*small, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+  if(rank==0){
+    //printMat(tmp, big, big);
+    double *result = malloc(m*n*sizeof(double));
+    int i;
+    for(i=0; i<m*n; i++){
+      int blockCol = (i/(small*small)) % dim;
+      int blockRow = i/(small*small*dim);
+
+      result[small*small*dim*blockRow + small*blockCol + (dim*small)*(i/small) + i%small] = tmp[i];
+    }
+    printMat(result, big, big);
+  }
   double end = MPI_Wtime();
 
   printf("Elapsed: %f\n", end-start);
 
-  //printf("C%d =\n", rank);
-  //printMat(c, small, small);
-  //printf("\n");
+  printf("C%d =\n", rank);
+  printMat(c, small, small);
+  printf("\n");
 
   MPI_Finalize();
   return 0;
