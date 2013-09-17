@@ -34,8 +34,8 @@ void pdgemm(m, n, k, nb, alpha, a, lda, b, ldb,
       i, j, kk, iwrk, // misc. index vars
       icurrow, icurcol, // index of row and col that hold current row and col, resp., for rank-1 update
       ii, jj; // local index (on icurrow and icurcol, resp.) of row and col for rank-1 update
-  double *temp, // temp pointer used in pdgemm_abt
-         *p;
+  //double *temp, // temp pointer used in pdgemm_abt
+   double      *p;
 
   // get myrow, mycol
 
@@ -49,7 +49,7 @@ void pdgemm(m, n, k, nb, alpha, a, lda, b, ldb,
   ii=0;
   jj=0;
   // malloc temp space for summation
-  temp = (double *) malloc(m_c[myrow]*nb*sizeof(double));
+  //temp = (double *) malloc(m_c[myrow]*nb*sizeof(double));
 
   for(kk=0; kk<k; kk+=iwrk){
     iwrk = min(nb, m_b[icurrow]-ii);
@@ -68,9 +68,19 @@ void pdgemm(m, n, k, nb, alpha, a, lda, b, ldb,
     RING_Bcast(work2, n_b[mycol]*iwrk, MPI_DOUBLE, icurrow, comm_col);
 
     // update local block
-    dgemm_("No transpose", "No transpose", &m_c[myrow], &n_c[mycol],
-        &iwrk, &alpha, work1, &m_b[myrow], work2, &iwrk, &d_one,
-        c, &ldc);
+    //dgemm_("No transpose", "No transpose", &m_c[myrow], &n_c[mycol],
+    //    &iwrk, &alpha, work1, &m_b[myrow], work2, &iwrk, &d_one,
+    //    c, &ldc);
+    int i,j,k;
+    for(i=0; i<m_c[myrow]; i++){
+      for(j=0; j<n_c[mycol]; j++){
+        c[n_c[mycol]*i+j] = 0;
+        for(k=0; k<iwrk; k++){
+          c[n_c[mycol]*i+j] += a[iwrk*i+k] * b[iwrk*k+j];
+        }
+      }
+    }
+    
     
     // update icurcol, icurrow, ii, jj
     ii += iwrk;
@@ -79,7 +89,7 @@ void pdgemm(m, n, k, nb, alpha, a, lda, b, ldb,
     if(ii>=m_b[icurrow]){icurrow++; ii=0;};
   }
 
-  free(temp);
+  //free(temp);
 }
 
 RING_Bcast(double *buf, int count, MPI_Datatype type, int root, MPI_Comm comm){
@@ -95,28 +105,50 @@ RING_Bcast(double *buf, int count, MPI_Datatype type, int root, MPI_Comm comm){
 }
 
 printMat(double* a, int n, int m){
+  printf("[");
   int i,j;
   for(i=0; i<n; i++){
     for(j=0; j<m; j++){
-      printf("%.2f ", a[i*m+j]);
+      printf("%f", a[i*m+j]);
+      if(j+1!=m){
+        printf(", ");
+      }
     }
-    printf("\n");
-  }
-}
-
-struct point_t {
-  int i;
-  int j;
-};
-
-void* mapBlock(double* a, int aWidth, int blockWidth, int blockHeight, double* b){
-  int i,j;
-  for(i=0; i<blockWidth; i++){
-    for(j=0; j<blockHeight; j++){
-      a[aWidth*i+j] = b[blockWidth*i+j];
+    if(i+1!=n){
+      printf(";\n");
     }
   }
+  printf("]\n");
 }
+
+//double *gatherMatrix(double *c, int rank, int size, int small){
+//  int dim = sqrt(size);
+//  double *tmp, *result;
+//  if(rank==0){
+//    tmp    = malloc(size*small*small*sizeof(double));
+//    result = malloc(size*small*small*sizeof(double));
+//  }
+//  MPI_Gather(c, small*small, MPI_DOUBLE, tmp, small*small, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+//  if(rank==0){
+//    // remapping of gathered result
+//    int ran;
+//    int cnt=0;
+//    for(ran=0; ran<size; ran++){ // for each node
+//      // calculate displacment
+//      int i_disp = small * (ran/dim); // row displacment in result
+//      int j_disp = small * (ran%dim); // col displacment in result
+//      int tmp_disp = small*dim*i_disp+j_disp; // displacment in tmp
+//      int i,j; // block iteration vars
+//      for(i=0; i<small; i++){
+//        for(j=0; j<small; j++){
+//          result[cnt++] = tmp[tmp_disp + i*small*dim + j];
+//        }
+//      }
+//    }
+//    free(tmp);
+//  }
+//  return result;
+//}
 
 int main(int argc, char* argv[]){
   int rank, size;
@@ -125,8 +157,8 @@ int main(int argc, char* argv[]){
   MPI_Comm_rank (MPI_COMM_WORLD, &rank);  /* get current process id */
   MPI_Comm_size (MPI_COMM_WORLD, &size);  /* get number of processes */
 
-  int big = 4000;
-  int small = 2000;
+  int big = 4;
+  int small = 2;
 
   int m=big, n=big, k=big;
   double alpha=1.0;
@@ -140,15 +172,16 @@ int main(int argc, char* argv[]){
   int lda = small;
   int ldb = small;
   int ldc = small;
+
   int nb = 2;
+  int dim = sqrt(size);
 
   double *a = malloc(small*small*sizeof(double));
   double *b = malloc(small*small*sizeof(double));
   double *c = malloc(small*small*sizeof(double));
 
   int i,j;
-  sleep(rank);
-  srand((unsigned)time(NULL));
+  srand((unsigned)time(NULL)+rank);
   for(i=0; i<small; i++){
     for(j=0; j<small; j++){
       A(i,j) = ((double)rand()/(double)RAND_MAX);
@@ -159,58 +192,46 @@ int main(int argc, char* argv[]){
   double *work1 = malloc(big*small*sizeof(double));
   double *work2 = malloc(big*small*sizeof(double));
 
-  int dim = sqrt(size);
-
   MPI_Comm comm_row, comm_col;
   MPI_Comm_split(MPI_COMM_WORLD, rank/dim, rank, &comm_row);
   MPI_Comm_split(MPI_COMM_WORLD, rank%dim, rank, &comm_col);
-
-  //printf("A%d =\n", rank);
-  //printMat(a, small, small);
-  //printf("\n");
-
-  //printf("B%d =\n", rank);
-  //printMat(b, small, small);
-  //printf("\n");
 
   double start = MPI_Wtime();
   pdgemm(m, n, k, nb, alpha, a, lda, b, ldb,
     beta, c, ldc, m_a, n_a, m_b, n_b, m_c, n_c,
     comm_row, comm_col, work1, work2);
-
-
-  double *tmp;
-  if(rank==0){
-    tmp = malloc(m*n*sizeof(double));
-  }
   double endMult = MPI_Wtime();
-  MPI_Gather(c, m_c[rank]*n_c[rank], MPI_DOUBLE, tmp, small*small, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-  double endGather = MPI_Wtime();
-  if(rank==0){
-    // remapping of gathered result
-    double *result = malloc(m*n*sizeof(double));
-    int ran;
-    int cnt=0;
-    for(ran=0; ran<size; ran++){ // for each node
-      // calculate displacment
-      int i_disp = small * (ran/dim); // row displacment in result
-      int j_disp = small * (ran%dim); // col displacment in result
-      int tmp_disp = small*dim*i_disp+j_disp; // displacment in tmp
-      int i,j; // block iteration vars
-      for(i=0; i<small; i++){
-        for(j=0; j<small; j++){
-          result[cnt++] = tmp[tmp_disp + i*small*dim + j];
-        }
-      }
-    }
-  }
-  double endAll = MPI_Wtime();
-  //printMat(result, big, big);
 
-  printf("Elapsed on %d: %f, %f, %f\n", rank, endMult-start, endGather-start, endAll-start);
+  //double *bigA, *bigB, *bigC;
+  //bigA = gatherMatrix(a, rank, size, small);
+  //bigB = gatherMatrix(b, rank, size, small);
+  //bigC = gatherMatrix(c, rank, size, small);
 
-  printf("C%d =\n", rank);
-  //printMat(c, small, small);
+  //if(rank==0){
+  //  printf("A = ");
+  //  printMat(bigA, big, big);
+  //  printf("\n");
+  //  printf("B = ");
+  //  printMat(bigB, big, big);
+  //  printf("\n");
+  //  printf("C = ");
+  //  printMat(bigC, big, big);
+  //  printf("\n");
+  //}
+  //double endGather = MPI_Wtime();
+
+  //printf("Elapsed on %d: %f, %f, %f\n", rank, endMult-start, endGather-start);
+
+  printf("A%d =", rank);
+  printMat(a, small, small);
+  printf("\n");
+
+  printf("B%d =", rank);
+  printMat(b, small, small);
+  printf("\n");
+
+  printf("C%d =", rank);
+  printMat(c, small, small);
   printf("\n");
 
   MPI_Finalize();
