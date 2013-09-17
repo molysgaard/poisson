@@ -125,8 +125,8 @@ int main(int argc, char* argv[]){
   MPI_Comm_rank (MPI_COMM_WORLD, &rank);  /* get current process id */
   MPI_Comm_size (MPI_COMM_WORLD, &size);  /* get number of processes */
 
-  int big = 4;
-  int small = 2;
+  int big = 4000;
+  int small = 2000;
 
   int m=big, n=big, k=big;
   double alpha=1.0;
@@ -183,25 +183,34 @@ int main(int argc, char* argv[]){
   if(rank==0){
     tmp = malloc(m*n*sizeof(double));
   }
+  double endMult = MPI_Wtime();
   MPI_Gather(c, m_c[rank]*n_c[rank], MPI_DOUBLE, tmp, small*small, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+  double endGather = MPI_Wtime();
   if(rank==0){
-    //printMat(tmp, big, big);
+    // remapping of gathered result
     double *result = malloc(m*n*sizeof(double));
-    int i;
-    for(i=0; i<m*n; i++){
-      int blockCol = (i/(small*small)) % dim;
-      int blockRow = i/(small*small*dim);
-
-      result[small*small*dim*blockRow + small*blockCol + (dim*small)*(i/small) + i%small] = tmp[i];
+    int ran;
+    int cnt=0;
+    for(ran=0; ran<size; ran++){ // for each node
+      // calculate displacment
+      int i_disp = small * (ran/dim); // row displacment in result
+      int j_disp = small * (ran%dim); // col displacment in result
+      int tmp_disp = small*dim*i_disp+j_disp; // displacment in tmp
+      int i,j; // block iteration vars
+      for(i=0; i<small; i++){
+        for(j=0; j<small; j++){
+          result[cnt++] = tmp[tmp_disp + i*small*dim + j];
+        }
+      }
     }
-    printMat(result, big, big);
   }
-  double end = MPI_Wtime();
+  double endAll = MPI_Wtime();
+  //printMat(result, big, big);
 
-  printf("Elapsed: %f\n", end-start);
+  printf("Elapsed on %d: %f, %f, %f\n", rank, endMult-start, endGather-start, endAll-start);
 
   printf("C%d =\n", rank);
-  printMat(c, small, small);
+  //printMat(c, small, small);
   printf("\n");
 
   MPI_Finalize();
