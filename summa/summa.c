@@ -164,8 +164,9 @@ int main(int argc, char* argv[]){
   MPI_Comm_rank (MPI_COMM_WORLD, &rank);  /* get current process id */
   MPI_Comm_size (MPI_COMM_WORLD, &size);  /* get number of processes */
 
-  int big = 600;
-  int small = 200;
+
+  int small = atoi(argv[2]);
+  int big = small*atoi(argv[1]);
 
   int m=big, n=big, k=big;
   double alpha=1.0;
@@ -180,7 +181,7 @@ int main(int argc, char* argv[]){
   int ldb = small;
   int ldc = small;
 
-  int nb = 200;
+  int nb = small;
   int dim = sqrt(size);
 
   double *a = malloc(small*small*sizeof(double));
@@ -213,6 +214,7 @@ int main(int argc, char* argv[]){
   bigA = gatherMatrix(a, rank, size, small);
   bigB = gatherMatrix(b, rank, size, small);
   bigC = gatherMatrix(c, rank, size, small);
+  double endGather = MPI_Wtime();
 
   if(rank==0){
     //printf("A = ");
@@ -224,23 +226,19 @@ int main(int argc, char* argv[]){
     //printf("C = ");
     //printMat(bigC, big, big);
     //printf("\n");
+    FILE *fa = fopen("a.m", "w");
+    FILE *fb = fopen("b.m", "w");
+    FILE *fc = fopen("c.m", "w");
+
+    fwrite(bigA, sizeof(double), big*big, fa);
+    fwrite(bigB, sizeof(double), big*big, fb);
+    fwrite(bigC, sizeof(double), big*big, fc);
+
+    fclose(fa);
+    fclose(fb);
+    fclose(fc);
+    printf("Elapsed on %d: %f, %f\n", rank, endMult-start, endGather-start);
   }
-  double endGather = MPI_Wtime();
-
-  //printf("Elapsed on %d: %f, %f, %f\n", rank, endMult-start, endGather-start);
-
-  //sleep(rank);
-  //printf("A%d =", rank);
-  //printMat(a, small, small);
-  //printf("\n");
-
-  //printf("B%d =", rank);
-  //printMat(b, small, small);
-  //printf("\n");
-
-  //printf("C%d =", rank);
-  //printMat(c, small, small);
-  //printf("\n");
 
   MPI_Finalize();
   return 0;
