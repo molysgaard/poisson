@@ -157,6 +157,62 @@ void scatterMatrix(double *sbuf, double *rbuf, int rank, int size, int small){
   free(tmpSbuf);
 }
 
+double *calcEigenVectors(int rank, int size, int small){
+  double *eigs = malloc(small*small*sizeof(double));
+  int dim = sqrt(size);
+  int idisp = small*(rank/dim);
+  int jdisp = small*(rank%dim);
+  double n = dim*small;
+
+  int i,j;
+  for(i=0; i<small; i++)
+    for(j=0; j<small; j++)
+      eigs[i*small + j] = sqrt(2.0/(n+1.0)) * sin(((idisp+i+1.0)*(jdisp+j+1.0)*M_PI)/(n+1.0));
+  return eigs;
+}
+
+double *calcTransposedEigenVectors(int rank, int size, int small){
+  double *eigs = malloc(small*small*sizeof(double));
+  int dim = sqrt(size);
+  int idisp = small*(rank%dim);
+  int jdisp = small*(rank/dim);
+  double n = dim*small;
+
+  int i,j;
+  for(j=0; j<small; j++)
+    for(i=0; i<small; i++)
+      eigs[j*small + i] = sqrt(2.0/(n+1.0)) * sin(((jdisp+j+1.0)*(idisp+i+1.0)*M_PI)/(n+1.0));
+  return eigs;
+}
+
+double *calcEigenValues(int rank, int size, int small, double h){
+  double *lambda = malloc(2*small*sizeof(double));
+  int dim = sqrt(size);
+  int idisp = small*(rank/dim);
+  int jdisp = small*(rank%dim);
+  double n = dim*small;
+
+  int j;
+  for(j=0; j<small; j++){
+    lambda[2*j] = 4.0/(h*h) * pow(sin(M_PI*(idisp+j+1)/(2*(n+1))),2);
+    lambda[2*j+1] = 4.0/(h*h) * pow(sin(M_PI*(jdisp+j+1)/(2*(n+1))),2);
+  }
+  return lambda;
+}
+
+double *calcUmod(int size, int small, double *g, double *lambda){
+  double *Umod = malloc(small*small*sizeof(double));
+  int dim = sqrt(size);
+  double n = dim*small;
+
+  int i,j;
+  for(i=0; i<small; i++)
+    for(j=0; j<small; j++)
+      Umod[i*small+j] = g[i*small+j]/(lambda[i]+lambda[j]);
+
+  return Umod;
+}
+
 int main(int argc, char* argv[]){
   int rank, size;
 
@@ -184,16 +240,58 @@ int main(int argc, char* argv[]){
   int nb = small;
   int dim = sqrt(size);
 
-  double *a = malloc(small*small*sizeof(double));
-  double *b = malloc(small*small*sizeof(double));
-  double *c = malloc(small*small*sizeof(double));
+  double *tmp = malloc(small*small*sizeof(double));
+  //double *b = malloc(small*small*sizeof(double));
+  //double *c = malloc(small*small*sizeof(double));
 
   int i,j;
-  srand((unsigned)time(NULL)+rank);
-  for(i=0; i<small; i++){
-    for(j=0; j<small; j++){
-      a[lda*i+j] = ((double)rand()/(double)RAND_MAX);
-      b[ldb*i+j] = ((double)rand()/(double)RAND_MAX);
+
+  // our space discretization step size
+  double h = 1.0;
+
+  // diagonalize the discrete laplace opperator
+  double *lambda = calcEigenValues(rank, size, small, h);
+  //printf("lambda%d = ", rank);
+  //printMat(lambda, small, 2);
+
+  //exit(1);
+
+  double *eigenVectors = calcEigenVectors(rank, size, small);
+
+  double *transEigenVectors = calcTransposedEigenVectors(rank, size, small);
+
+  //printf("eigs%d = ", rank);
+  //printMat(eigenVectors, small, small);
+  //printf("\n");
+
+  //printf("transEigs%d = ", rank);
+  //printMat(transEigenVectors, small, small);
+  //printf("\n");
+
+  //exit(1);
+
+  double *G = malloc(small*small*sizeof(double));
+
+  //// generate initial conditions
+  //srand((unsigned)time(NULL)+rank);
+  //for(i=0; i<small; i++){
+  //  for(j=0; j<small; j++){
+  //    G[lda*i+j] = h*((double)rand()/(double)RAND_MAX);
+  //  }
+  //}
+
+  // generate initial conditions
+  if(rank==0){
+    for(i=0; i<small; i++){
+      for(j=0; j<small; j++){
+        G[lda*i+j] = h*1;
+      }
+    }
+  }else{
+    for(i=0; i<small; i++){
+      for(j=0; j<small; j++){
+        G[lda*i+j] = 0;
+      }
     }
   }
 
@@ -205,39 +303,69 @@ int main(int argc, char* argv[]){
   MPI_Comm_split(MPI_COMM_WORLD, rank%dim, rank, &comm_col);
 
   double start = MPI_Wtime();
-  pdgemm(m, n, k, nb, alpha, a, lda, b, ldb,
-    beta, c, ldc, m_a, n_a, m_b, n_b, m_c, n_c,
+  // tmp = G * Q
+  //printf("%d: tmp = G * Q\n", rank);
+  pdgemm(m, n, k, nb, alpha, G, lda, eigenVectors, ldb,
+    beta, tmp, ldc, m_a, n_a, m_b, n_b, m_c, n_c,
     comm_row, comm_col, work1, work2);
+
+  double *Gmod = G;
+
+  // Gmod = Q' * tmp
+  //printf("%d: Gmod = Q' * tmp\n", rank);
+  pdgemm(m, n, k, nb, alpha, transEigenVectors, lda, tmp, ldb,
+    beta, Gmod, ldc, m_a, n_a, m_b, n_b, m_c, n_c,
+    comm_row, comm_col, work1, work2);
+
+  // calc Umod
+  //printf("%d: calc Umod\n", rank);
+  double *Umod = calcUmod(size, small, Gmod, lambda);
+
+  // tmp = Q * Umod
+  //printf("%d: tmp = Q * Umod\n", rank);
+  pdgemm(m, n, k, nb, alpha, eigenVectors, lda, Umod, ldb,
+    beta, tmp, ldc, m_a, n_a, m_b, n_b, m_c, n_c,
+    comm_row, comm_col, work1, work2);
+
+  double *U = Umod;
+  // U = tmp * Q'
+  //printf("%d: U = tmp * Q\n", rank);
+  pdgemm(m, n, k, nb, alpha, tmp, lda, transEigenVectors, ldb,
+    beta, U, ldc, m_a, n_a, m_b, n_b, m_c, n_c,
+    comm_row, comm_col, work1, work2);
+
   double endMult = MPI_Wtime();
 
-  double *bigA, *bigB, *bigC;
-  bigA = gatherMatrix(a, rank, size, small);
-  bigB = gatherMatrix(b, rank, size, small);
-  bigC = gatherMatrix(c, rank, size, small);
-  double endGather = MPI_Wtime();
+  
+
+  double *bigU, *bigB, *bigC;
+  bigU = gatherMatrix(U, rank, size, small);
+  //bigB = gatherMatrix(b, rank, size, small);
+  //bigC = gatherMatrix(c, rank, size, small);
+  //double endGather = MPI_Wtime();
 
   if(rank==0){
-    //printf("A = ");
-    //printMat(bigA, big, big);
-    //printf("\n");
-    //printf("B = ");
-    //printMat(bigB, big, big);
-    //printf("\n");
-    //printf("C = ");
-    //printMat(bigC, big, big);
-    //printf("\n");
-    FILE *fa = fopen("a.m", "w");
-    FILE *fb = fopen("b.m", "w");
-    FILE *fc = fopen("c.m", "w");
+  //  //printf("A = ");
+  //  //printMat(bigA, big, big);
+  //  //printf("\n");
+  //  //printf("B = ");
+  //  //printMat(bigB, big, big);
+  //  //printf("\n");
+  //  //printf("C = ");
+  //  //printMat(bigC, big, big);
+  //  //printf("\n");
+    FILE *fu = fopen("u.m", "w");
+  //  FILE *fb = fopen("b.m", "w");
+  //  FILE *fc = fopen("c.m", "w");
 
-    fwrite(bigA, sizeof(double), big*big, fa);
-    fwrite(bigB, sizeof(double), big*big, fb);
-    fwrite(bigC, sizeof(double), big*big, fc);
+    fwrite(bigU, sizeof(double), big*big, fu);
+  //  fwrite(bigB, sizeof(double), big*big, fb);
+  //  fwrite(bigC, sizeof(double), big*big, fc);
 
-    fclose(fa);
-    fclose(fb);
-    fclose(fc);
-    printf("Elapsed on %d: %f, %f\n", rank, endMult-start, endGather-start);
+    fclose(fu);
+  //  fclose(fb);
+  //  fclose(fc);
+  //  printf("Elapsed on %d: %f, %f\n", rank, endMult-start, endGather-start);
   }
 
   MPI_Finalize();
