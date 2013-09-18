@@ -5,10 +5,6 @@
 #include <math.h>
 #include <gsl/gsl_cblas.h>
 
-#define A(i,j) (a[j*lda + i])
-#define B(i,j) (b[j*ldb + i])
-#define C(i,j) (c[j*ldc + i])
-
 #define min(x,y) ( (x) < (y) ? (x) : (y) )
 
 int i_one=1; //used for constant passed to blac call
@@ -35,16 +31,12 @@ void pdgemm(m, n, k, nb, alpha, a, lda, b, ldb,
       i, j, kk, iwrk, // misc. index vars
       icurrow, icurcol, // index of row and col that hold current row and col, resp., for rank-1 update
       ii, jj; // local index (on icurrow and icurcol, resp.) of row and col for rank-1 update
-  //double *temp, // temp pointer used in pdgemm_abt
    double      *p;
 
   // get myrow, mycol
 
   MPI_Comm_rank(comm_row, &mycol);
   MPI_Comm_rank(comm_col, &myrow);
-  //for(j=0; j<n_c[mycol]; j++)
-  //  for(i=0; i<m_c[myrow]; i++)
-  //    C(i,j) = beta * C(i,j);
   for(i=0; i<n_c[myrow]; i++)
     for(j=0; j<m_c[mycol]; j++)
       c[ldc*i+j] = beta * c[ldc*i+j];
@@ -53,8 +45,6 @@ void pdgemm(m, n, k, nb, alpha, a, lda, b, ldb,
   icurcol=0;
   ii=0;
   jj=0;
-  // malloc temp space for summation
-  //temp = (double *) malloc(m_c[myrow]*nb*sizeof(double));
 
   for(kk=0; kk<k; kk+=iwrk){
     iwrk = min(nb, m_b[icurrow]-ii);
@@ -62,12 +52,10 @@ void pdgemm(m, n, k, nb, alpha, a, lda, b, ldb,
 
     // pack current iwrk cols of A into work1
     if(mycol == icurcol)
-      //dlacpy_("General", &m_a[myrow], &iwrk, &A(0,jj), &lda, work1, &m_a[myrow]);
       memcpy(work1, a+jj, m_a[myrow]*iwrk*sizeof(double));
 
     // pack current iwrk rows of B into work2
     if(myrow == icurrow)
-      //dlacpy_("General", &iwrk, &n_b[mycol], &B(ii,0), &ldb, work2, &iwrk);
       memcpy(work2, b+(ldb*ii), iwrk*n_a[mycol]*sizeof(double));
 
     // broadcast work1 and work2
@@ -75,22 +63,9 @@ void pdgemm(m, n, k, nb, alpha, a, lda, b, ldb,
     RING_Bcast(work2, n_b[mycol]*iwrk, MPI_DOUBLE, icurrow, comm_col);
 
     // update local block
-    //dgemm_("No transpose", "No transpose", &m_c[myrow], &n_c[mycol],
-    //    &iwrk, &alpha, work1, &m_b[myrow], work2, &iwrk, &d_one,
-    //    c, &ldc);
     cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, m_c[myrow], n_c[mycol],
         iwrk, alpha, work1, m_b[myrow], work2, iwrk, d_one,
         c, ldc);
-    //int i,j,k;
-    //for(i=0; i<m_c[myrow]; i++){
-    //  for(j=0; j<n_c[mycol]; j++){
-    //    c[n_c[mycol]*i+j] = 0;
-    //    for(k=0; k<iwrk; k++){
-    //      c[n_c[mycol]*i+j] += a[iwrk*i+k] * b[iwrk*k+j];
-    //    }
-    //  }
-    //}
-    
     
     // update icurcol, icurrow, ii, jj
     ii += iwrk;
@@ -99,7 +74,6 @@ void pdgemm(m, n, k, nb, alpha, a, lda, b, ldb,
     if(ii>=m_b[icurrow]){icurrow++; ii=0;};
   }
 
-  //free(temp);
 }
 
 RING_Bcast(double *buf, int count, MPI_Datatype type, int root, MPI_Comm comm){
@@ -160,6 +134,29 @@ double *gatherMatrix(double *c, int rank, int size, int small){
   return result;
 }
 
+void scatterMatrix(double *sbuf, double *rbuf, int rank, int size, int small){
+  int dim = sqrt(size);
+  double *tmpSbuf;
+  if(rank==0){
+    tmpSbuf = malloc(size*small*small*sizeof(double));
+    // remapping of gathered result
+    int ran;
+    int cnt=0;
+    for(ran=0; ran<size; ran++){ // for each node
+      // calculate displacment
+      int i_disp = small * (ran/dim); // row displacment in result
+      int j_disp = small * (ran%dim); // col displacment in result
+      int tmp_disp = small*dim*i_disp+j_disp; // displacment in tmp
+      int i,j; // block iteration vars
+      for(i=0; i<small; i++)
+        for(j=0; j<small; j++)
+          tmpSbuf[cnt++] = sbuf[tmp_disp + i*small*dim + j];
+    }
+  }
+  MPI_Scatter(tmpSbuf, small*small, MPI_DOUBLE, rbuf, small*small, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+  free(tmpSbuf);
+}
+
 int main(int argc, char* argv[]){
   int rank, size;
 
@@ -194,8 +191,6 @@ int main(int argc, char* argv[]){
   srand((unsigned)time(NULL)+rank);
   for(i=0; i<small; i++){
     for(j=0; j<small; j++){
-      //A(i,j) = ((double)rand()/(double)RAND_MAX);
-      //B(i,j) = ((double)rand()/(double)RAND_MAX);
       a[lda*i+j] = ((double)rand()/(double)RAND_MAX);
       b[ldb*i+j] = ((double)rand()/(double)RAND_MAX);
     }
@@ -220,15 +215,15 @@ int main(int argc, char* argv[]){
   bigC = gatherMatrix(c, rank, size, small);
 
   if(rank==0){
-    printf("A = ");
-    printMat(bigA, big, big);
-    printf("\n");
-    printf("B = ");
-    printMat(bigB, big, big);
-    printf("\n");
-    printf("C = ");
-    printMat(bigC, big, big);
-    printf("\n");
+    //printf("A = ");
+    //printMat(bigA, big, big);
+    //printf("\n");
+    //printf("B = ");
+    //printMat(bigB, big, big);
+    //printf("\n");
+    //printf("C = ");
+    //printMat(bigC, big, big);
+    //printf("\n");
   }
   double endGather = MPI_Wtime();
 
