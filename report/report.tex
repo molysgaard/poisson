@@ -27,6 +27,16 @@
 \section{Problem description and motivation}
 We're interested in discretizing and simulating the general wave equation
 
+\section{Journal}
+\begin{enumerate}
+	\item Started with Haskell. Managed to create a sequential that was on par with C and had much better readability and consiseness.
+	\item Started looking at the accelerate library for Haskell. Managed to implement a matrix multiply in it but it lacked performance because of the non-flat nature of the matrix multiply algorithm in accelerate. This made it solver than a sequential C implementation.
+	\item Contacted author of accelerate to see if there was any way to mend the problems but it turned out to be a limitation in the embedded language that accelerate is. There is no way to express the type of computation that matrix multiply is effeciently. This is because of the intermidiat dot-product you calculate when doing matrix multiply. Accelerate is extremely good at things that it's made for, like stencil computations. This was also looked at but because the application was to be solving extremely large linear systems they would not fit in the memory of one GPU.
+	\item First version of the SUMMA algorithm used FORTAN routines for the matrix multipyl and array copying. Since FORTRAN ararys are column-major instead of row-major as in C this lead to unpredictable and really hard to debug problems in the algorithm.
+	\item Scattering and gathering the matrices from the master node proved prone to error. Not because of bad libraries or programming errors. The challenge was creating the correct mapping in a general case from a contigous array to smaller blocked contigous arrays at the low abstraction level that C works.
+\end{enumerate}
+
+
 \begin{thebibliography}{9}
 
 \bibitem{engquist_majda}
