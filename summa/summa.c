@@ -342,7 +342,7 @@ int main(int argc, char* argv[]){
   bigU = gatherMatrix(U, rank, size, small);
   //bigB = gatherMatrix(b, rank, size, small);
   //bigC = gatherMatrix(c, rank, size, small);
-  //double endGather = MPI_Wtime();
+  double endGather = MPI_Wtime();
 
   if(rank==0){
   //  //printf("A = ");
@@ -365,7 +365,7 @@ int main(int argc, char* argv[]){
     fclose(fu);
   //  fclose(fb);
   //  fclose(fc);
-  //  printf("Elapsed on %d: %f, %f\n", rank, endMult-start, endGather-start);
+    printf("Elapsed on %d: %f, %f\n", rank, endMult-start, endGather-start);
   }
 
   MPI_Finalize();
