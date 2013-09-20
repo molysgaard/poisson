@@ -194,6 +194,11 @@ double *calcEigenValues(int rank, int size, int small, double h){
 
   int j;
   for(j=0; j<small; j++){
+    //lambda n j = 4/h^2 * (sin (pi*fromIntegral j/(2*(fromIntegral n+1))))^2
+
+    //lambda[2*j] = 4.0/(h*h) * pow(sin(M_PI*(idisp+j)/(2*(n+1))),2);
+    //lambda[2*j+1] = 4.0/(h*h) * pow(sin(M_PI*(jdisp+j)/(2*(n+1))),2);
+
     lambda[2*j] = 4.0/(h*h) * pow(sin(M_PI*(idisp+j+1)/(2*(n+1))),2);
     lambda[2*j+1] = 4.0/(h*h) * pow(sin(M_PI*(jdisp+j+1)/(2*(n+1))),2);
   }
@@ -208,7 +213,7 @@ double *calcUmod(int size, int small, double *g, double *lambda){
   int i,j;
   for(i=0; i<small; i++)
     for(j=0; j<small; j++)
-      Umod[i*small+j] = g[i*small+j]/(lambda[i]+lambda[j]);
+      Umod[i*small+j] = g[i*small+j]/(lambda[2*i]+lambda[2*j+1]);
 
   return Umod;
 }
@@ -241,8 +246,6 @@ int main(int argc, char* argv[]){
   int dim = sqrt(size);
 
   double *tmp = malloc(small*small*sizeof(double));
-  //double *b = malloc(small*small*sizeof(double));
-  //double *c = malloc(small*small*sizeof(double));
 
   int i,j;
 
@@ -251,9 +254,9 @@ int main(int argc, char* argv[]){
 
   // diagonalize the discrete laplace opperator
   double *lambda = calcEigenValues(rank, size, small, h);
+
   //printf("lambda%d = ", rank);
   //printMat(lambda, small, 2);
-
   //exit(1);
 
   double *eigenVectors = calcEigenVectors(rank, size, small);
@@ -284,13 +287,13 @@ int main(int argc, char* argv[]){
   if(rank==0){
     for(i=0; i<small; i++){
       for(j=0; j<small; j++){
-        G[lda*i+j] = h*1;
+        G[lda*i+j] = h*1.0;
       }
     }
   }else{
     for(i=0; i<small; i++){
       for(j=0; j<small; j++){
-        G[lda*i+j] = 0;
+        G[lda*i+j] = 0.0;
       }
     }
   }
