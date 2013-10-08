@@ -24,6 +24,171 @@
 
 \maketitle
 
+\section{introduction}
+The first use of comptuers was for doing simple calculations at a higher rate
+than a human possibly could. Today computers are no longer just calculators but
+present everywhere around us, intergrating to our lives to a bigger and bigger extent.
+Even though we have past the era of big calculators scientific computing and the use
+of computers for doing ever bigger calculations is just increasing. Today it is
+often much cheaper to do numerical experiments, simulation the nature, instead of
+setting up a real experiment. Numerical experiments are usually cheaper, less
+dangorous and easier to analyse the results from. Fields that use this extencively
+are military, for nuclear explosion simulations and metrologists for simulation the weather.
+
+Almost all computer aided design is today tested numerically before any physical model is made.
+Planes are tested for their flight caractheristics, cars for their aeorodynamic properties, enignes
+for their thermodynamics etc. All of these applications are very computational intensive and on the
+really big scale, like weather forcasts, they require immense computational power, clever algorithms
+and programming techniques. This report covers a sample problem in scientific computing. Solving the
+Poisson equation for a big problem size. This requires an approach very different from a naive
+sequential implementation to get good performance.
+
+\section{Poissons equation}
+Poisson's equation is given as
+\[
+-\Delta u = f
+\]
+where $\Delta = \nabla^2$ is the Laplace operator, u and f are real or complex valued functions in a
+euclidian space. The equation is often written as
+\[
+-\nabla^2 u = f.
+\]
+In two dimensions the equation can be written as
+\[
+-\left( \frac{\partial^2}{\partial x^2} + \frac{\partial^2}{\partial y^2} \right) u(x,y) = f(x,y).
+\]
+This equation is continous and to work with it in the computer some discretized approximation has
+to be made. This equation is continous and to work with it in the computer some discretized approximation has to be made. A finite difference approximation was chosen as it presents us with a
+problem that have several solution strategies that illustrates well the important properties to
+consider when designing parallel numerical algorithms.
+
+After a FDM discretization we are left with a 2D regular grid. Each node in this grid represents
+a point for which we compute an approximation to our functions $u(x,y)$ and $f(x,y)$.
+Using a central difference approximation to the partial derivatives in each direction leaves us
+with the following equation
+\[
+-\frac{u_{i+1,j}-2u_{i,j}+u_{i-1,j}}{h^2} - \frac{u_{i,j+1}-2u_{i,j}+u_{i,j-1}}{h^2} = f_{i,j}, 1\leq i,j \leq n-1.
+\]
+
+The goal is to express this 2D equation as a linear system of equations which we then can solve with
+different techniques using the computer.
+
+Let
+\begin{equation}
+	U = \begin{bmatrix}
+		u_{1,1} & \dots & u_{1,n} \\
+		\vdots  &       & \vdots \\
+		u_{n,1} & \dots & u_{n,n}
+	\end{bmatrix}
+\end{equation}
+be the discretized version of $u$.
+
+Let 
+\begin{equation}
+	T = \begin{bmatrix}
+		2 & -1 & & & \\
+		-1 & 2 & -1 & & \\
+		& \ddots & \ddots & \ddots &\\
+		& & -1 & 2 & -1\\
+		& & & -1 & 2 \\
+	\end{bmatrix}
+\end{equation}
+be the discrete partial double derivative operator.
+Then,
+\begin{align*}
+	(TU)_{i,j} &= 2u_{i,j} - u_{i+1,j}, &i=1,\\
+	(TU)_{i,j} &= 2u_{i,j} - u_{i+1,j} - u_{i-1,j}, &2 \leq i \leq n-2,\\
+	(TU)_{i,j} &= 2u_{i,j} - u_{i-1,j}, &i=n-1.\\
+\end{align*}
+and thus,
+\[
+\frac{1}{h^2}(TU)_{i,j} \approx - \left(\frac{\partial^2 u}{\partial x^2}\right)_{i,j}.
+\]
+By the same argument
+\[
+\frac{1}{h^2}(UT)_{i,j} \approx - \left(\frac{\partial^2 u}{\partial y^2}\right)_{i,j}.
+\]
+
+Our finite difference scheme can thus be written as
+\[
+\frac{1}{h^2}(TU + UT)_{i,j} = f_{i,j}, \quad 1\leq i,j \leq n-1.
+\]
+Or
+\[
+\label{linsys}
+TU + UT = G
+\]
+where
+\begin{equation}
+G = h^2 \begin{bmatrix}
+		f_{1,1} & \dots & f_{1,n} \\
+		\vdots  &       & \vdots \\
+		f_{n,1} & \dots & f_{n,n}
+	\end{bmatrix}
+\end{equation}.
+
+The $T$ matrix may be diagonalized
+\[
+T = Q \Lambda Q^\top
+\]
+where $\Lambda$ is a diagonal matrix and $Q Q^\top=I$, the identity matrix.
+When we insert this expression for $T$ in \eqref{linsys} we get
+\[
+Q \Lambda Q^\top U + U Q \Lambda Q^\top = G.
+\]
+Multiplying from rigth with $Q$ and left with $Q^\top$ gives
+\begin{align*}
+&(Q^\top Q) \Lambda Q^\top U Q + Q^\top U Q \Lambda (Q^\top Q)\\
+&= \Lambda Q^\top U Q + Q^\top U Q \Lambda = Q^\top G Q.
+\end{align*}
+
+We let $Q^\top U Q = \tilde{U}$ and $Q^\top G Q = \tilde{G}$ and get
+\[
+\Lambda \tilde{U} + \tilde{U} \Lambda = \tilde{G}
+\]
+
+From this we see that \eqref{linsys} can be solved by the following steps.
+\paragraph{step 1}
+Form the matrix matrix product
+\[
+\tilde{G} = Q^\top G Q.
+\]
+\paragraph{step 2}
+solve
+\[
+\Lambda \tilde{U} + \tilde{U} \Lambda = \tilde{G}
+\]
+or
+\[
+\tilde{u}_{i,j} = \frac{\tilde{g}_{i,j}}{\lambda_i + \lambda_j}.
+\]
+\paragraph{step 3}
+Compute the matrix matrix product
+\[
+U = Q \tilde{U} Q^\top.
+\]
+
+\subsection{Computational complexity}
+The asymptotic complexity of this method is bounded by the most expensive step
+in the algorithm.
+Given a 2D grid of size $n-1 \times n-1$ we can denote the following complexity to each step.
+\paragraph{step 1}
+2 matrix matrix products each have complexity $O(n^3)$.
+\paragraph{step 2}
+$n^2$ constant opperations, $O(n^2)$.
+\paragraph{step 3}
+2 matrix matrix products each have complexity $O(n^3)$.
+
+This means that this solution method has $O(n^3)$ complexity and a serial implementation
+will have asymptotic running time following $n^3$ of the problem size $n$.
+
+\section{Analysis of paralellizable sections.}
+The presented solution method is not a obvious candidate for paralellization.
+Most of the time of the algorithm is used in the matrix multiplications in step one
+and two. This means that to make this algorithm scale well a large scale paralellized
+matrix multiply has to implemented. A naive paralellization on a single SMP machine
+was rejected as it would not let the algoritm scale to huge scales.
+
 \section{Problem description and motivation}
 We're interested in discretizing and simulating the general wave equation
 
@@ -34,7 +199,7 @@ We're interested in discretizing and simulating the general wave equation
 	\item Contacted author of accelerate to see if there was any way to mend the problems but it turned out to be a limitation in the embedded language that accelerate is. There is no way to express the type of computation that matrix multiply is effeciently. This is because of the intermidiat dot-product you calculate when doing matrix multiply. Accelerate is extremely good at things that it's made for, like stencil computations. This was also looked at but because the application was to be solving extremely large linear systems they would not fit in the memory of one GPU.
 	\item First version of the SUMMA algorithm used FORTAN routines for the matrix multipyl and array copying. Since FORTRAN ararys are column-major instead of row-major as in C this lead to unpredictable and really hard to debug problems in the algorithm.
 	\item Scattering and gathering the matrices from the master node proved prone to error. Not because of bad libraries or programming errors. The challenge was creating the correct mapping in a general case from a contigous array to smaller blocked contigous arrays at the low abstraction level that C works.
-	\item Implementing a really fast sequential version is not trivial since most of the tools for fast numerical code, BLAS, LAPACK etc. do paralellization without you knowing it. For example the first sequential version of the program used the \verbatim{cblas_dgemm} routine. When this routine was profiled it was experienced that the routine forked off several threads to do it's work, thus these library functions could not be used for a sequential implementation.
+	\item Implementing a really fast sequential version is not trivial since most of the tools for fast numerical code, BLAS, LAPACK etc. do paralellization without you knowing it. For example the first sequential version of the program used the cblas\_dgemm routine. When this routine was profiled it was experienced that the routine forked off several threads to do it's work, thus these library functions could not be used for a sequential implementation.
 \end{enumerate}
 
 
