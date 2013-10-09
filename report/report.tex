@@ -43,7 +43,8 @@ and programming techniques. This report covers a sample problem in scientific co
 Poisson equation for a big problem size. This requires an approach very different from a naive
 sequential implementation to get good performance.
 
-\section{Poissons equation}
+\section{Problem description}
+\label{sec:sol_steps}
 Poisson's equation is given as
 \[
 -\Delta u = f
@@ -57,97 +58,11 @@ In two dimensions the equation can be written as
 \[
 -\left( \frac{\partial^2}{\partial x^2} + \frac{\partial^2}{\partial y^2} \right) u(x,y) = f(x,y).
 \]
-This equation is continous and to work with it in the computer some discretized approximation has
-to be made. This equation is continous and to work with it in the computer some discretized approximation has to be made. A finite difference approximation was chosen as it presents us with a
-problem that have several solution strategies that illustrates well the important properties to
-consider when designing parallel numerical algorithms.
 
-After a FDM discretization we are left with a 2D regular grid. Each node in this grid represents
-a point for which we compute an approximation to our functions $u(x,y)$ and $f(x,y)$.
-Using a central difference approximation to the partial derivatives in each direction leaves us
-with the following equation
-\[
--\frac{u_{i+1,j}-2u_{i,j}+u_{i-1,j}}{h^2} - \frac{u_{i,j+1}-2u_{i,j}+u_{i,j-1}}{h^2} = f_{i,j}, 1\leq i,j \leq n-1.
-\]
+In section \ref{sec:meth_der} we derive the chosen solution method of this equation. The mathematics are
+lengthy and it suffices for the parallel analyzis to know that one ends up with a three step solution
+process.
 
-The goal is to express this 2D equation as a linear system of equations which we then can solve with
-different techniques using the computer.
-
-Let
-\begin{equation}
-	U = \begin{bmatrix}
-		u_{1,1} & \dots & u_{1,n} \\
-		\vdots  &       & \vdots \\
-		u_{n,1} & \dots & u_{n,n}
-	\end{bmatrix}
-\end{equation}
-be the discretized version of $u$.
-
-Let 
-\begin{equation}
-	T = \begin{bmatrix}
-		2 & -1 & & & \\
-		-1 & 2 & -1 & & \\
-		& \ddots & \ddots & \ddots &\\
-		& & -1 & 2 & -1\\
-		& & & -1 & 2 \\
-	\end{bmatrix}
-\end{equation}
-be the discrete partial double derivative operator.
-Then,
-\begin{align*}
-	(TU)_{i,j} &= 2u_{i,j} - u_{i+1,j}, &i=1,\\
-	(TU)_{i,j} &= 2u_{i,j} - u_{i+1,j} - u_{i-1,j}, &2 \leq i \leq n-2,\\
-	(TU)_{i,j} &= 2u_{i,j} - u_{i-1,j}, &i=n-1.\\
-\end{align*}
-and thus,
-\[
-\frac{1}{h^2}(TU)_{i,j} \approx - \left(\frac{\partial^2 u}{\partial x^2}\right)_{i,j}.
-\]
-By the same argument
-\[
-\frac{1}{h^2}(UT)_{i,j} \approx - \left(\frac{\partial^2 u}{\partial y^2}\right)_{i,j}.
-\]
-
-Our finite difference scheme can thus be written as
-\[
-\frac{1}{h^2}(TU + UT)_{i,j} = f_{i,j}, \quad 1\leq i,j \leq n-1.
-\]
-Or
-\[
-\label{linsys}
-TU + UT = G
-\]
-where
-\begin{equation}
-G = h^2 \begin{bmatrix}
-		f_{1,1} & \dots & f_{1,n} \\
-		\vdots  &       & \vdots \\
-		f_{n,1} & \dots & f_{n,n}
-	\end{bmatrix}
-\end{equation}.
-
-The $T$ matrix may be diagonalized
-\[
-T = Q \Lambda Q^\top
-\]
-where $\Lambda$ is a diagonal matrix and $Q Q^\top=I$, the identity matrix.
-When we insert this expression for $T$ in \eqref{linsys} we get
-\[
-Q \Lambda Q^\top U + U Q \Lambda Q^\top = G.
-\]
-Multiplying from rigth with $Q$ and left with $Q^\top$ gives
-\begin{align*}
-&(Q^\top Q) \Lambda Q^\top U Q + Q^\top U Q \Lambda (Q^\top Q)\\
-&= \Lambda Q^\top U Q + Q^\top U Q \Lambda = Q^\top G Q.
-\end{align*}
-
-We let $Q^\top U Q = \tilde{U}$ and $Q^\top G Q = \tilde{G}$ and get
-\[
-\Lambda \tilde{U} + \tilde{U} \Lambda = \tilde{G}
-\]
-
-From this we see that \eqref{linsys} can be solved by the following steps.
 \paragraph{step 1}
 Form the matrix matrix product
 \[
@@ -168,7 +83,10 @@ Compute the matrix matrix product
 U = Q \tilde{U} Q^\top.
 \]
 
-\subsection{Computational complexity}
+Where $G$ and $U$ is a discrete version of $h^2 f$ and $u$ respectively, $Q$ is the eigen vectors of the Laplace operator,
+$\lambda$ is a diagonal matrix of the eigen values of the discretized Laplace operator and $\tilde{A} = Q^\top A Q$.
+
+\section{Computational complexity}
 The asymptotic complexity of this method is bounded by the most expensive step
 in the algorithm.
 Given a 2D grid of size $n-1 \times n-1$ we can denote the following complexity to each step.
@@ -180,17 +98,56 @@ $n^2$ constant opperations, $O(n^2)$.
 2 matrix matrix products each have complexity $O(n^3)$.
 
 This means that this solution method has $O(n^3)$ complexity and a serial implementation
-will have asymptotic running time following $n^3$ of the problem size $n$.
+will have asymptotic running time of $n^3$ of the problem size $n$. Here the problem size
+\[
+n \leq \max(n_x,n_y)
+\]
+where $n_x$ and $n_y$ is the number of grid points in our finite difference approximation
+in the x and y direction respectively.
+
+\section{Survey of alternate solution method}
+The simplest method of solving the Poisson equation is to apply a 5 point stencil on your domain
+iteratively. This means that each cell in the grid gives a fraction of its own value to its neighbors.
+Then this is done for each cell iteratively untill the grid does not change more than a given threshold.
+
+This method has the same asymptotic operation cost, $O(n^3)$ and better memory requirement $O(n^2)$.
+However it does not lend itself well to paralellization. To paralellize this one would split
+up the domain in blocks that each node can take care of. The five point stencil would then be
+run in paralell on each of the nodes. At the end of each iteration phase a global
+syncronization would have to occur for all the nodes in the compute grid to know the boundary values
+to its own domain. This would lead to $O(n)$ all to all communcation steps each of a cost of
+\[
+4\frac{n}{\sqrt{p}}
+\]
+elements, where $p$ is the number of compute nodes the domain is distributed on.
+This syncronization would make the algorithm way to slow for any practical size
+of the problem compared to the direct diagonalization method.
 
 \section{Analysis of paralellizable sections.}
-The presented solution method is not a obvious candidate for paralellization.
-Most of the time of the algorithm is used in the matrix multiplications in step one
-and two. This means that to make this algorithm scale well a large scale paralellized
+The presented solution method (section \ref{sec:sol_steps}) is not a obvious candidate for paralellization
+since a large majority of the time is used doing matrix multiplications.
+This means that to make this algorithm scale well a large scale paralellized
 matrix multiply has to implemented. A naive paralellization on a single SMP machine
-was rejected as it would not let the algoritm scale to huge scales.
+was rejected as it would not let the algoritm scale to the huge scales that are realistic
+in applications such as weather forcasts.
+After some research it was found that that there exists a algorithm for this, \cite{summa}, discovered in 1997.
 
-\section{Problem description and motivation}
-We're interested in discretizing and simulating the general wave equation
+\subsection{The SUMMA algorithm}
+TODO: Explain the SUMMA algorithm
+
+\section{Wall time analyzis}
+\subsection{Serial implementation runtime}
+plot the run time for a serial implementation
+
+\subsection{Parallel implementation run time}
+plot the run time for a paralell implementation
+
+\subsection{Parallel CUDA implementation run time}
+plot the run time for a CUDA paralell implementation
+
+\subsection{Speedup}
+plot speedup
+
 
 \section{Journal}
 \begin{enumerate}
@@ -203,18 +160,13 @@ We're interested in discretizing and simulating the general wave equation
 \end{enumerate}
 
 
+
 \begin{thebibliography}{9}
 
-\bibitem{engquist_majda}
-  Bjørn Engquist and Andrew Majda (1977).
-  \emph{Absorbing Boundary Conditions for the Numerical Simulation of Waves}
-  (Mathematics of Computation, Volume 31, Number 139,
-  July 1977, Pages 629-651).
-
-\bibitem{note}
-  Brynjulf Owren
-  \emph{TMA4212 Numerical solution of partial differential equations with finite difference methods}
-  (February 24, 2011).
+\bibitem{summa}
+  Robert A. van de Geijn and Jerrell Watts (1997)
+  \emph{SUMMA: Scalable Universal Matrix Multiplication Algorithm}
+  \url{http://www.netlib.org/lapack/lawnspdf/lawn96.pdf}
 
 \bibitem{blas}
   \url{http://www.netlib.org/blas/}
