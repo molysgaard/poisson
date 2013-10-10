@@ -59,7 +59,7 @@ In two dimensions the equation can be written as
 -\left( \frac{\partial^2}{\partial x^2} + \frac{\partial^2}{\partial y^2} \right) u(x,y) = f(x,y).
 \]
 
-In section \ref{sec:meth_der} we derive the chosen solution method of this equation. The mathematics are
+In section \ref{sec:math_der} we derive the chosen solution method of this equation. The mathematics are
 lengthy and it suffices for the parallel analyzis to know that one ends up with a three step solution
 process.
 
@@ -151,9 +151,11 @@ share the same initialization and logic. The only difference is the calls to BLA
 \subsection{Parallel implementation}
 In the paralell implementation ``everything is allowed''. That is any library that could give
 increased performance would be used. The following tactic was developed.
-\paragraph
-Use the SUMMA algorithm to distribute the work across different nodes. There are two main reasons to
-spread the work accross different nodes.
+
+Use the SUMMA algorithm to distribute the work across different nodes. Use intel MKLs cblas implementation
+to do the internal matrix multiplications in the SUMMA algorithm.
+
+There are three main reasons to spread the work accross different nodes.
 \subparagraph{Memory requirements}
 As the problem size, $n$, increases the memory requirement increases at $O(n^2)$. This means that for
 big problem sizes a single nodes memory is simply not enough to hold the whole problem.
@@ -162,6 +164,18 @@ Distributing the work over several nodes gives more cache memory available. Even
 of a given size may not fill the available memory on a node it will wery quickly fill the available
 cache. Sinche the cache memory gives several orders of magnitude faster access than normal memory
 the algorithm speeds up considerably from this.
+\subparagraph{Processors}
+Even the biggest nodes in the QUT HPC machine only have 32 processors. Using only SMP technicques
+the maximum number of processors available is thus 32. This is enough for most applications but
+for this specific one where massize scalability is the key it is not enough.
+
+The reason for using intels MKL library for the internal matrix multiplication are manyfold. First
+off it is the industry leading library for math kernels. After talks with the HPC staff at QUT it was
+discovered that MKL would normally outperform CUDAS BLAS, CUBLAS, because of the highly specialized code
+in MKL written for exactly the processor architectures that QUTs super computer uses. Intels MKL coupled
+with intels C compiler, icc, also supports linking options ta make it run in thread parallel mode. This
+made it possible to accurately control the granulatiy of both the distributed memory, MPI, part and the
+shared memory, Intel MKL part, to gain the highes possible performance.
 
 \section{Wall time analyzis}
 
@@ -192,6 +206,106 @@ plot speedup
 	\item Implementing a really fast sequential version is not trivial since most of the tools for fast numerical code, BLAS, LAPACK etc. do paralellization without you knowing it. For example the first sequential version of the program used the cblas\_dgemm routine. When this routine was profiled it was experienced that the routine forked off several threads to do it's work, thus these library functions could not be used for a sequential implementation.
 \end{enumerate}
 
+\section{Mathematical derivation of solution method}
+\label{sec:math_der}
+Poisson's equation is given as
+\[
+-\Delta u = f
+\]
+where $\Delta = \nabla^2$ is the Laplace operator, u and f are real or complex valued functions in a
+euclidian space. The equation is often written as
+\[
+-\nabla^2 u = f.
+\]
+In two dimensions the equation can be written as
+\[
+-\left( \frac{\partial^2}{\partial x^2} + \frac{\partial^2}{\partial y^2} \right) u(x,y) = f(x,y).
+\]
+
+This equation is continous and to work with it in the computer some discretized approximation has
+to be made. This equation is continous and to work with it in the computer some discretized approximation has to be made. A finite difference approximation was chosen as it presents us with a
+problem that have several solution strategies that illustrates well the important properties to
+consider when designing parallel numerical algorithms.
+
+After a FDM discretization we are left with a 2D regular grid. Each node in this grid represents
+a point for which we compute an approximation to our functions $u(x,y)$ and $f(x,y)$.
+Using a central difference approximation to the partial derivatives in each direction leaves us
+with the following equation
+\[
+-\frac{u_{i+1,j}-2u_{i,j}+u_{i-1,j}}{h^2} - \frac{u_{i,j+1}-2u_{i,j}+u_{i,j-1}}{h^2} = f_{i,j}, 1\leq i,j \leq n-1.
+\]
+
+The goal is to express this 2D equation as a linear system of equations which we then can solve with
+different techniques using the computer.
+
+Let
+\begin{equation}
+       U = \begin{bmatrix}
+               u_{1,1} & \dots & u_{1,n} \\
+               \vdots  &       & \vdots \\
+               u_{n,1} & \dots & u_{n,n}
+       \end{bmatrix}
+\end{equation}
+be the discretized version of $u$.
+
+Let 
+\begin{equation}
+       T = \begin{bmatrix}
+               2 & -1 & & & \\
+               -1 & 2 & -1 & & \\
+               & \ddots & \ddots & \ddots &\\
+               & & -1 & 2 & -1\\
+               & & & -1 & 2 \\
+       \end{bmatrix}
+\end{equation}
+be the discrete partial double derivative operator.
+Then,
+\begin{align*}
+       (TU)_{i,j} &= 2u_{i,j} - u_{i+1,j}, &i=1,\\
+       (TU)_{i,j} &= 2u_{i,j} - u_{i+1,j} - u_{i-1,j}, &2 \leq i \leq n-2,\\
+       (TU)_{i,j} &= 2u_{i,j} - u_{i-1,j}, &i=n-1.\\
+\end{align*}
+and thus,
+\[
+\frac{1}{h^2}(TU)_{i,j} \approx - \left(\frac{\partial^2 u}{\partial x^2}\right)_{i,j}.
+\]
+By the same argument
+\[
+\frac{1}{h^2}(UT)_{i,j} \approx - \left(\frac{\partial^2 u}{\partial y^2}\right)_{i,j}.
+\]
+
+Our finite difference scheme can thus be written as
+\[
+\frac{1}{h^2}(TU + UT)_{i,j} = f_{i,j}, \quad 1\leq i,j \leq n-1.
+\]
+Or
+\[
+\label{linsys}
+TU + UT = G
+\]
+where
+\begin{equation}
+G = h^2 \begin{bmatrix}
+               f_{1,1} & \dots & f_{1,n} \\
+               \vdots  &       & \vdots \\
+               f_{n,1} & \dots & f_{n,n}
+       \end{bmatrix}
+\end{equation}.
+
+The $T$ matrix may be diagonalized
+\[
+T = Q \Lambda Q^\top
+\]
+where $\Lambda$ is a diagonal matrix and $Q Q^\top=I$, the identity matrix.
+When we insert this expression for $T$ in \eqref{linsys} we get
+\[
+Q \Lambda Q^\top U + U Q \Lambda Q^\top = G.
+\]
+Multiplying from rigth with $Q$ and left with $Q^\top$ gives
+\begin{align*}
+&(Q^\top Q) \Lambda Q^\top U Q + Q^\top U Q \Lambda (Q^\top Q)\\
+&= \Lambda Q^\top U Q + Q^\top U Q \Lambda = Q^\top G Q.
+\end{align*}
 
 
 \begin{thebibliography}{9}
