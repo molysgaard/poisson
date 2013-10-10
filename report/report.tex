@@ -135,9 +135,42 @@ After some research it was found that that there exists a algorithm for this, \c
 \subsection{The SUMMA algorithm}
 TODO: Explain the SUMMA algorithm
 
+\section{Implementations}
+Two different implementations of the algorithm was done.
+This was to compare the running time of the parallell version with a reference
+serial implementation.
+
+\subsection{Serial implementation}
+The serial version was implemented only using vanilla C. It uses no other libraries to
+do the heavy lifting in math. The reason for not using any libraries is that most BLAS and LAPACK
+implementations for supercomputers are using SIMD as well as thread level paralellism. This makes
+it very hard to implement a true serial program when using other libraries since these almost always
+link to some underlying BLAS or LAPACK routine which is paralellized. The serial and paralell code
+share the same initialization and logic. The only difference is the calls to BLAS and the SUMMA algorithm.
+
+\subsection{Parallel implementation}
+In the paralell implementation ``everything is allowed''. That is any library that could give
+increased performance would be used. The following tactic was developed.
+\paragraph
+Use the SUMMA algorithm to distribute the work across different nodes. There are two main reasons to
+spread the work accross different nodes.
+\subparagraph{Memory requirements}
+As the problem size, $n$, increases the memory requirement increases at $O(n^2)$. This means that for
+big problem sizes a single nodes memory is simply not enough to hold the whole problem.
+\subparagraph{Cache}
+Distributing the work over several nodes gives more cache memory available. Even though a problem
+of a given size may not fill the available memory on a node it will wery quickly fill the available
+cache. Sinche the cache memory gives several orders of magnitude faster access than normal memory
+the algorithm speeds up considerably from this.
+
 \section{Wall time analyzis}
+
+\subsection{What was measured}
+what is the timing talking about?
+mention that the generation of the input matrices is not in the timing, nor is the
+generation of the eigenvalues/vectors for the discrete laplace opperator.
+
 \subsection{Serial implementation runtime}
-plot the run time for a serial implementation
 
 \subsection{Parallel implementation run time}
 plot the run time for a paralell implementation
