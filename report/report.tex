@@ -16,9 +16,9 @@
 \newcommand{\dd}[2]{\ensuremath{\frac{\partial^2 #1}{\partial #2^2}}}
 \newcommand{\ddd}[2]{\ensuremath{\frac{\partial^3 #1}{\partial #2^3}}}
 
-\title{Semester project \\ TMA4212 Numerical solution of differential equations by difference methods }
-\author{Candidate no. 10059,10044 and 10012.}
-\date{April 2013}
+\title{Project, INB375, Parallel Computing}
+\author{Morten Olsen Lysgaard}
+\date{October 2013}
 
 \begin{document}
 
@@ -59,12 +59,12 @@ In two dimensions the equation can be written as
 -\left( \frac{\partial^2}{\partial x^2} + \frac{\partial^2}{\partial y^2} \right) u(x,y) = f(x,y).
 \]
 
-In section \ref{sec:math_der} we derive the chosen solution method of this equation. The mathematics are
-lengthy and it suffices for the parallel analyzis to know that one ends up with a three step solution
+In section \ref{sec:math_der} we derive the chosen solution method of this equation. 
+For the parallel analyzis it suffices to know that one ends up with a three step solution
 process.
 
 \paragraph{step 1}
-Form the matrix matrix product
+Form the two matrix matrix products
 \[
 \tilde{G} = Q^\top G Q.
 \]
@@ -97,7 +97,7 @@ $n^2$ constant opperations, $O(n^2)$.
 \paragraph{step 3}
 2 matrix matrix products each have complexity $O(n^3)$.
 
-This means that this solution method has $O(n^3)$ complexity and a serial implementation
+This means that this solution method has $O(n^3)$ complexity and a sequential implementation
 will have asymptotic running time of $n^3$ of the problem size $n$. Here the problem size
 \[
 n \leq \max(n_x,n_y)
@@ -105,7 +105,7 @@ n \leq \max(n_x,n_y)
 where $n_x$ and $n_y$ is the number of grid points in our finite difference approximation
 in the x and y direction respectively.
 
-\section{Survey of alternate solution method}
+\section{Survey of an alternate solution method}
 The simplest method of solving the Poisson equation is to apply a 5 point stencil on your domain
 iteratively. This means that each cell in the grid gives a fraction of its own value to its neighbors.
 Then this is done for each cell iteratively untill the grid does not change more than a given threshold.
@@ -115,7 +115,8 @@ However it does not lend itself well to paralellization. To paralellize this one
 up the domain in blocks that each node can take care of. The five point stencil would then be
 run in paralell on each of the nodes. At the end of each iteration phase a global
 syncronization would have to occur for all the nodes in the compute grid to know the boundary values
-to its own domain. This would lead to $O(n)$ all to all communcation steps each of a cost of
+to its own domain. This would lead to $O(n)$ all to all communcation steps where each node has to
+send and recieve
 \[
 4\frac{n}{\sqrt{p}}
 \]
@@ -138,15 +139,16 @@ TODO: Explain the SUMMA algorithm
 \section{Implementations}
 Two different implementations of the algorithm was done.
 This was to compare the running time of the parallell version with a reference
-serial implementation.
+sequential implementation.
 
-\subsection{Serial implementation}
-The serial version was implemented only using vanilla C. It uses no other libraries to
+\subsection{Sequential implementation}
+The sequential version was implemented only using vanilla C. It uses no other libraries to
 do the heavy lifting in math. The reason for not using any libraries is that most BLAS and LAPACK
 implementations for supercomputers are using SIMD as well as thread level paralellism. This makes
-it very hard to implement a true serial program when using other libraries since these almost always
-link to some underlying BLAS or LAPACK routine which is paralellized. The serial and paralell code
+it very hard to implement a true sequential program when using other libraries since these almost always
+link to some underlying BLAS or LAPACK routine which is paralellized. The sequential and paralell code
 share the same initialization and logic. The only difference is the calls to BLAS and the SUMMA algorithm.
+The sequential implementation landed on roughly 150 lines of C code.
 
 \subsection{Parallel implementation}
 In the paralell implementation ``everything is allowed''. That is any library that could give
@@ -161,11 +163,11 @@ As the problem size, $n$, increases the memory requirement increases at $O(n^2)$
 big problem sizes a single nodes memory is simply not enough to hold the whole problem.
 \subparagraph{Cache}
 Distributing the work over several nodes gives more cache memory available. Even though a problem
-of a given size may not fill the available memory on a node it will wery quickly fill the available
+of a given size may not fill the available memory on a node it will very quickly fill the available
 cache. Sinche the cache memory gives several orders of magnitude faster access than normal memory
 the algorithm speeds up considerably from this.
 \subparagraph{Processors}
-Even the biggest nodes in the QUT HPC machine only have 32 processors. Using only SMP technicques
+Even the biggest nodes in the QUT HPC machine only have 32 cores. Using only SMP technicques
 the maximum number of processors available is thus 32. This is enough for most applications but
 for this specific one where massize scalability is the key it is not enough.
 
@@ -174,26 +176,232 @@ off it is the industry leading library for math kernels. After talks with the HP
 discovered that MKL would normally outperform CUDAS BLAS, CUBLAS, because of the highly specialized code
 in MKL written for exactly the processor architectures that QUTs super computer uses. Intels MKL coupled
 with intels C compiler, icc, also supports linking options ta make it run in thread parallel mode. This
-made it possible to accurately control the granulatiy of both the distributed memory, MPI, part and the
-shared memory, Intel MKL part, to gain the highes possible performance.
+made it possible to accurately control the granulatiy of both the distributed memory, MPI, and the
+shared memory, Intel MKL, parts to gain the highes possible performance.
+
+The parallel version ended on roughly 370 lines of code. Compared to the sequential version this difference
+is almost solely because of the SUMMA algorithm and the scattering and gathering code.
+
+\section{Targeted Hardware}
+Since the application is meant to run on big problem sizes the natural target hardware was QUTs
+HPC cluster Lyra. Is is a SGI Altix XE cluster consisting of 128 compute nodes containing 1924 Intel Xeon Cores. Lyra is a
+hetrogenous cluster consisting of different nodes with different Xeon chips.
+The moste powerfull cores where chosen for the task, the E5-2670@2.66(GHz) 64bit Intel Xeon processor 8 core processor.
+Lyra has 1472 of these cores.
+\subsection{Hardware specific tweaks}
+To get the most out of your program it is essential to customize it for your target architecture.
+For Lyra the following customization was done to maximize performance.
+
+Instead of using the open source implementation of MPI, open-MPI, a propritary SGI
+implementation, MPT, was used. The reason for this is that MPT is specially optimized
+for SGI clusters and uses the available hardware and propritary network interconnects
+in a more optimal way than the generic open-MPI implementation does.
+
+Another optimization that was used was usage of the Intel Math Kernal Library\cite{mkl} for
+BLAS\cite{blas} routines instead of the open source BLAS implementations commonly available
+on UNIXes. This again hinges on that the MKL is specificly optimized for Intel processors
+and uses all the advanced vectorization, pipelining and instruction level paralellism
+possible. To quote one of the MPC staff ``Intel MKL usually sees better speed in linear
+algebra benchmarks than CUDAs BLAS implementation on our cluster.''
+
+
+\section{Libraries, software and tools used}
+All development took place on Ubuntu Linux machine since the developer
+have 10 years experience with Linux and open source. This made tasks like
+installing development libraries etc. a breeze because of Linuxs package
+management systems.
+
+The first iterations of code was targeted and written for a standard
+desktop machine. The Gnu C compiler and Open-MPI and the Gnu Scientific Library
+was installed and code developed. GCC together with Open-MPI worked well for
+debugging purposes when just running on one machine. For timing the realtime
+library of Linux was used in the sequential implementation while MPI_WallTime
+was used for the parallel one.
+
+After a working MPI implementation was done the first small tests on the
+QUT HPC cluster was run. Here instead of GCC, Intels C compiler, ICC, was usd.
+After talking to the HPC staff a switch to SGIs MPI implementation was also done.
+Lastly Intels MKL replaced the Gnu Scientific Library.
+
+The parallel and sequential implementation where compiled with the some optimization
+flag, -O2.
+
+\section{Problems encountered during implementation and solutions}
+When this project started the initial plan was to see if Haskell\cite{haskell}
+would be robust and feature full enough to implement an industry grade
+numerical algorithm. For this the accelerate\cite{accelerate}
+library of Haskell was used and a functioning matrix multiply algorithm written to run on a CUDA
+backend. It was benchemarked but due to the nested paralellism needed to express matrix multiply
+in the domain specific language that accelerate exposes the performance was not even on par
+with a sequential implementation. The authors of accelerate, researchers at University of New South Wales,
+was contacted to get further insigth in the problem, but they did not have an imidiate solution.
+
+After considering extending the accelerate library Haskell was scrapped as language of choise and
+focus given to a C implementation. Progress was made and over a few weeks a working SUMMA algorithm
+was implemented. A lot of time was used reasoning about the subtle interactions and transformations
+to indexes of the matrices when you create a distributed matrix. Several errors where found and
+corrected before a working implementation was acchieved. One of the problem encountered was that
+the reference SUMMA algorithm from \cite{summa} uses BLAS subroutines written in FORTRAN.
+Since FORTRAN has column major ordering
+of its arrays all computations where transposed in the internal multiply routines of the SUMMA call.
+This was an especially hard bug to find because without this knowlede it is very hard to reason
+why the results are incorrect, when the algorithm step by step seemingly does the correct thing.
+To fix the problem it was chosen to use the CBLAS interface to BLAS. CBLAS wraps all BLAS calls
+to C style semantics and expects row major matrices.
+
+The next part that prooved hard was scattering and gathering matrices from the master node.
+Without this the different parts of the result matrix would be distributed across the cluster
+which is not sufficient if you want the SUMMA algorithm to be a plug in relpacement for a
+BLAS dgemm call. Again the index transformations that occur when splitting up and gathering
+the matrix was the hard part and small errors where hidden in the indexes.
+
+\subsection{Correctness of algorithms}
+For debugging the correctness of the SUMMA algorithm Matlabs implementation of
+matrix multiply was used. A random $A$ and $B$ matrix would be generated by the
+SUMMA program and written to disk. Then the SUMMA algurithm would be run and the
+answer matrix, $C = A B$, would be written to disk. Afterwards a script would be
+run in Matlab to read $A$ and $B$ and cross reference it with the $C$ matrix.
+This was whery helpfull to get the correctly implemented SUMMA algorithm.
+
+After the SUMMA algorithm worked correctly an implementation of the poisson solver
+was written using the SUMMA algorithm. Again a reference implementation was written
+in Matlab and both implementation where set to solve the same problem. Afterwards
+both solutions where plotted and compared to eachother qualitatively and numerically
+to check for correctness. Several errors in the indexes of eigenvectors, eigenvalues
+and initialization where found in the SUMMA implementation and corrected. In the end
+the distributed MPI-SUMMA algorithm gave the same ansver as the reference Matlab implementation
+down to machine precition and the distributed Poisson solver was considered correct.
 
 \section{Wall time analyzis}
 
 \subsection{What was measured}
-what is the timing talking about?
-mention that the generation of the input matrices is not in the timing, nor is the
-generation of the eigenvalues/vectors for the discrete laplace opperator.
+To be able to compare the sequential and parallel implementations some assumptions had to
+be done. The general rule of thumb was that whenever in doubth, give the sequential implementation
+the benefit.
 
-\subsection{Serial implementation runtime}
+The first part that had to be considered was if initialization of the problem should be included
+in the wall time measurements. Since the distributed implementation is able to initialize in
+a paralell fashion, that is, that all the nodes only do initialization for their small part of the
+problem it was not inculded in the wall time measurements. This would have given the parallel implementation
+a seemingly unfair advantage.
 
-\subsection{Parallel implementation run time}
-plot the run time for a paralell implementation
+The other part was if gathering the distributed results from the SUMMA algorithm
+should be counted in the wall time. It was decided that this should be included,
+the reasoning was that if the solution to the Poisson equation is to be used in
+further calculations on a single machine the whole distributed answer has to be
+gathered to the master node before the algorithm could continue.
 
-\subsection{Parallel CUDA implementation run time}
-plot the run time for a CUDA paralell implementation
+\subsection{Error of wall time measurements}
+Because the application was run on a distributed machine also running lots of
+other processes special care had to be taken to get reproducable timing results.
+
+Firstly the program was scheduled on the same type of machine every time. This
+way the hetrogenity of Lyra was ruled out as only the E5-2670 cores where used
+for time measurements. The secound issue is that since the application is running
+MPI it is suseptible to network contention from other processes running on the
+cluster. Good data was still gathered using the following tactic. For each configuration
+of the problem, $n$, nodes, mpi processes, cores etc. 10 instances of the same
+configuration is run. Afterwards a statistical analysis of the results where done
+in the software package R\cite{r-project}, this way the noise and uncertanties of the
+wall time measurements could be contered and a reasonable level of precition acchieved.
+
+Since statistics where done on the runtimes some of the the plots showing runtimes 
+are box plots\footnote{\url{http://en.wikipedia.org/wiki/Box_plot}}. The black bar
+in the box show the median, the box covers the two middle quadtiles. The whiskers show the maximum
+and minimum measured value and any circles shows outliers. Outliers are measurements
+that are so far from the rest that they probably are the product of an error,
+in this case another process from another HPC job interfering with our program.
+
+\subsection{Sequential implementation wall time}
+\begin{figure}[H]
+  \begin{center}
+    \includegraphics[width=12cm]{../analysis/serial_walltime.pdf}
+  \end{center}
+  \caption{Sequential implementation wall time as a function of problem size run on a single core.}
+  \label{serial_walltime}
+\end{figure}
+
+\subsection{Parallel implementation wall time}
+\begin{figure}[H]
+  \begin{center}
+    \includegraphics[width=12cm]{../analysis/parallel_walltime1.pdf}
+  \end{center}
+  \caption{Parallel implementation wall time as a function of problem size. Run on 5 nodes each with 5 MPI processes and 10 cores.}
+  \label{parallel_walltime1}
+\end{figure}
+
+\begin{figure}[H]
+  \begin{center}
+    \includegraphics[width=12cm]{../analysis/mpi_nodes_walltime.pdf}
+  \end{center}
+  \caption{Parallel implementation wall time on a constant size problem, $n=10000$, as a function of mpi processes. For each mpi process there where two cores.}
+  \label{parallel_walltime2}
+\end{figure}
 
 \subsection{Speedup}
-plot speedup
+\begin{figure}[H]
+  \begin{center}
+    \includegraphics[width=12cm]{../analysis/mpi_nodes_speedup.pdf}
+  \end{center}
+  \caption{Speedup of program as a function of MPI processes when running on a constant problem size $n=10000$. For each MPI process there where two cores allocated to let OpenMP paralellize on the second core.}
+  \label{mpi_nodes_speedup}
+\end{figure}
+
+\begin{figure}[H]
+  \begin{center}
+    \includegraphics[width=12cm]{../analysis/problem_size_speedup.pdf}
+  \end{center}
+  \caption{Speedup of program as a function of problem size when running on a constant number of nodes, 5, MPI processes, 25, and cores, 50.}
+  \label{problem_size_speedup}
+\end{figure}
+
+\section{Discussion}
+From the speedup graphs \ref{mpi_nodes_speedup}, \ref{problem_size_speedup} there seems to be an almost unexplainable speedup running on
+multiple cores.
+\subparagraph{Speedup as a function of problem size}
+To explain the speedup of around 160 the following factors has
+to be taken into consideration.
+
+5 nodes where used. Each node had
+5 mpi processes and 10 cores available. The remaining 5 cores on each
+node would be saturated by the paralellizm from the Intel MKL library.
+All in all this adds up to 50 cores.
+
+Secondly, the sequential implementation did not use any hardware dependent
+optimizations. Most importantly the code was not vectorized. The parallel
+implementation used MKL which for dgemm uses AVX2 instructions to do
+4 double precition floating point operations at the same time. Because of
+this up to 4 times the speedup can be claimed to come from vectorization.
+
+Lastly and most importantly. The sequential implementation runs on one core. This
+gives it acces to only that cores cache. Taking a closer look at the datasheet
+for the E5-2670\cite{intel-datasheet} we observe that the cache hierarchy is
+the following:
+\begin{enumerate}
+		\item L1 32kB instruction and 32kB data cache for each core
+		\item L2 256kB shared instruction data cache for each core
+		\item L3 20MB shared instruction data chache shared amongst all cores on the socket
+\end{enumerate}
+From a small calculation we see that for storing 3 1000x1000 matrices of doubles we need
+\[
+3 \times 1000^2 \frac{64}{8} = 3 \times 7.68 \text{Mb} = 22.89 \text{Mb}
+\]
+of memory.
+Thus even the smallest problem, $n=1000$ will fill all the cache layers from L1 to L3.
+For bigger problem this memory requirement increase on the order of $O(n^2)$.
+When the chache is saturated the core will frequently have to go to RAM to get new parts of the problem. This memory
+acces is several orders of magnitude slower that accessing the cache and the program sees a big
+slowdown because of it.
+
+Adding all these factors together, 50 cores, 4 times vectorization and at least 5 to 10 times slower memory access
+gives numbers close to
+\[
+50 \times 4 \times 5 = 250 < \text{speedup} < 50 \times 4 \times 10 = 500.
+\]
+This means that without taking into account the syncronization overhead
+the parallel algorithm could see between 250 and 500 times speedup in the given example.
+The reason we are seeing about 160 is because
+of all the syncronization introdused in the distributed algoritm.
 
 
 \section{Journal}
@@ -314,12 +522,30 @@ Multiplying from rigth with $Q$ and left with $Q^\top$ gives
   Robert A. van de Geijn and Jerrell Watts (1997)
   \emph{SUMMA: Scalable Universal Matrix Multiplication Algorithm}
   \url{http://www.netlib.org/lapack/lawnspdf/lawn96.pdf}
+ 
+\bibitem{mkl}
+  \url{http://software.intel.com/en-us/intel-mkl}
+
+\bibitem{r-project}
+  \url{http://www.r-project.org/}
+
+\bibitem{haskell}
+  \url{http://haskell.org}
+
+\bibitem{accelerate}
+  \url{http://hackage.haskell.org/package/accelerate}
 
 \bibitem{blas}
   \url{http://www.netlib.org/blas/}
 
 \bibitem{lapack}
   \url{http://www.netlib.org/lapack/}
+
+\bibitem{intel-datasheet}
+  \url{https://www-ssl.intel.com/content/dam/www/public/us/en/documents/datasheets/xeon-e5-v2-datasheet-vol-1.pdf}
+
+\bibitem{boxplot}
+  \url{http://en.wikipedia.org/wiki/Box_plot}
 
 \end{thebibliography}
 
