@@ -412,6 +412,8 @@ of all the syncronization introdused in the distributed algoritm.
 	\item First version of the SUMMA algorithm used FORTAN routines for the matrix multipyl and array copying. Since FORTRAN ararys are column-major instead of row-major as in C this lead to unpredictable and really hard to debug problems in the algorithm.
 	\item Scattering and gathering the matrices from the master node proved prone to error. Not because of bad libraries or programming errors. The challenge was creating the correct mapping in a general case from a contigous array to smaller blocked contigous arrays at the low abstraction level that C works.
 	\item Implementing a really fast sequential version is not trivial since most of the tools for fast numerical code, BLAS, LAPACK etc. do paralellization without you knowing it. For example the first sequential version of the program used the cblas\_dgemm routine. When this routine was profiled it was experienced that the routine forked off several threads to do it's work, thus these library functions could not be used for a sequential implementation.
+	\item Found out that increasing the number of cores available to the intel MKL compared to the number of MPI cores does not improve performance.
+	\item TODO: write about the SUMMA algorithm - write about the above point -
 \end{enumerate}
 
 \section{Mathematical derivation of solution method}
