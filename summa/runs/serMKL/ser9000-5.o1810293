@@ -1,0 +1,13 @@
+Serial stats:
+n, time
+9000, 299.072452
+
+-----
+
+PBS job 1810293 ended Sat Oct 19 21:00:57 EST 2013.
+
+CPU time  : 00:05:01
+Wall time : 00:05:02
+Mem usage : 14920kb
+CPU usage : 97%
+

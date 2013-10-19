@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include <math.h>
-#include <gsl/gsl_cblas.h>
+#include "mkl.h"
 
 #define min(x,y) ( (x) < (y) ? (x) : (y) )
 
@@ -226,6 +226,9 @@ int main(int argc, char* argv[]){
   MPI_Comm_size (MPI_COMM_WORLD, &size);  /* get number of processes */
 
 
+
+  int ompprocs = atoi(argv[3]);
+  omp_set_num_threads(ompprocs);
   int small = atoi(argv[2]);
   int big = small*atoi(argv[1]);
 
@@ -293,7 +296,7 @@ int main(int argc, char* argv[]){
   }else{
     for(i=0; i<small; i++){
       for(j=0; j<small; j++){
-        G[lda*i+j] = 0.0;
+        G[lda*i+j] = h*0.0;
       }
     }
   }
@@ -343,9 +346,10 @@ int main(int argc, char* argv[]){
 
   double *bigU, *bigB, *bigC;
   bigU = gatherMatrix(U, rank, size, small);
+  double endGather = MPI_Wtime();
   //bigB = gatherMatrix(b, rank, size, small);
   //bigC = gatherMatrix(c, rank, size, small);
-  double endGather = MPI_Wtime();
+
 
   if(rank==0){
   //  //printf("A = ");
@@ -357,18 +361,20 @@ int main(int argc, char* argv[]){
   //  //printf("C = ");
   //  //printMat(bigC, big, big);
   //  //printf("\n");
-    FILE *fu = fopen("u.m", "w");
+  //  FILE *fu = fopen("u.m", "w");
   //  FILE *fb = fopen("b.m", "w");
   //  FILE *fc = fopen("c.m", "w");
 
-    fwrite(bigU, sizeof(double), big*big, fu);
+  //  fwrite(bigU, sizeof(double), big*big, fu);
   //  fwrite(bigB, sizeof(double), big*big, fb);
   //  fwrite(bigC, sizeof(double), big*big, fc);
 
-    fclose(fu);
+  //  fclose(fu);
   //  fclose(fb);
   //  fclose(fc);
-    printf("Elapsed on %d: %f, %f\n", rank, endMult-start, endGather-start);
+    printf("Parallel stats for %d:\n", rank);
+    printf("mpi cores, omp threads, num blocks, block size, n, end mult, end gather\n");
+    printf("%d, %d, %d, %d, %d, %f, %f\n", size, ompprocs, dim, small, big, endMult-start, endGather-start);
   }
 
   MPI_Finalize();

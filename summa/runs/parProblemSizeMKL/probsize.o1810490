@@ -1,0 +1,14 @@
+Lyra: Intel Studio (composer_xe_2013.3.163) module loaded.
+Parallel stats for 0:
+mpi cores, omp threads, num blocks, block size, n, end mult, end gather
+25, 2, 5, 1400, 7000, 6.710592, 7.035373
+
+-----
+
+PBS job 1810490 ended Sat Oct 19 23:15:21 EST 2013.
+
+CPU time  : 00:00:35
+Wall time : 00:00:09
+Mem usage : 312kb
+CPU usage : 0%
+
