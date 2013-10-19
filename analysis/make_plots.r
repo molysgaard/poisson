@@ -2,13 +2,23 @@
 
 library(gdata)
 
-pdf('serial_walltime.pdf')
-serData = read.csv('ser-1k-10k-20runs')
+#pdf('serial_walltime.pdf')
+#serData = read.csv('ser-1k-10k-20runs')
+#boxplot(time~n,data=serData, log="y", main="Serial wall time as a function of n",
+#	   xlab="n", ylab="wall time(s)")
+
+pdf('serial_walltime_mkl.pdf')
+serData = read.csv('sermkl-1k-10k-10runs')
 boxplot(time~n,data=serData, log="y", main="Serial wall time as a function of n",
 	   xlab="n", ylab="wall time(s)")
 
-pdf('parallel_walltime1.pdf')
-parData = read.csv('par-1k-10k-10runs')
+#pdf('parallel_walltime1.pdf')
+#parData = read.csv('par-1k-10k-10runs')
+#boxplot(time.after.gather~n,data=parData, log="y", main="Parallel wall time as a function of n",
+#	   xlab="n", ylab="wall time(s)")
+
+pdf('parallel_problem_size_mkl.pdf')
+parData = read.csv('parmkl-1k-10k-10runs')
 boxplot(time.after.gather~n,data=parData, log="y", main="Parallel wall time as a function of n",
 	   xlab="n", ylab="wall time(s)")
 
@@ -20,8 +30,13 @@ plot(serMean$n, serMean$meanTime/parMean$meanTime, xlab="n", ylab="speedup", mai
 
 # changing node count stuff
 
-pdf('mpi_nodes_walltime.pdf')
-parNData = read.csv('par-1n-36n-2mpi-10k')
+#pdf('mpi_nodes_walltime.pdf')
+#parNData = read.csv('par-1n-36n-2mpi-10k')
+#boxplot(time.after.gather~mpi.nodes,data=parNData, log="y", main="Parallel wall time as a function of mpi processes",
+#	   xlab="mpi processes", ylab="wall time(s)")
+
+pdf('mpi_nodes_walltime_mkl.pdf')
+parNData = read.csv('parmkl-1mpi-36mpi-2omp-10k-10runs')
 boxplot(time.after.gather~mpi.nodes,data=parNData, log="y", main="Parallel wall time as a function of mpi processes",
 	   xlab="mpi processes", ylab="wall time(s)")
 
