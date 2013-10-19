@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include <math.h>
-#include <gsl/gsl_cblas.h>
+//#include <gsl/gsl_cblas.h>
 
 #define min(x,y) ( (x) < (y) ? (x) : (y) )
 
@@ -146,11 +146,13 @@ int main(int argc, char* argv[]){
 
   clock_gettime(CLOCK_MONOTONIC, &after);
   
-  printf("Elapsed: %f\n", ((double) (after.tv_sec - before.tv_sec)) +  (after.tv_nsec - before.tv_nsec)/10e9);
+  printf("Serial stats:\n");
+  printf("n, time\n");
+  printf("%d, %f\n", n, ((double) (after.tv_sec - before.tv_sec)) + (after.tv_nsec - before.tv_nsec)/10e9);
 
-  FILE *fu = fopen("u-seq.m", "w");
-  fwrite(U, sizeof(double), n*n, fu);
-  fclose(fu);
+  //FILE *fu = fopen("u-seq.m", "w");
+  //fwrite(U, sizeof(double), n*n, fu);
+  //fclose(fu);
 
   return 0;
 }

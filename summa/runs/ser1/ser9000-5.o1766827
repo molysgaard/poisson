@@ -1,0 +1,11 @@
+=>> PBS: job killed: mem 3172564kb exceeded limit 3145728kb
+
+-----
+
+PBS job 1766827 ended Wed Oct 9 17:28:54 EST 2013.
+
+CPU time  : 00:27:28
+Wall time : 00:27:40
+Mem usage : 3172564kb
+CPU usage : 97%
+

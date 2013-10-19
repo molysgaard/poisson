@@ -1,0 +1,13 @@
+#!/bin/bash -l
+#PBS -N seq
+#PBS -l select=1:ncpus=1:mem=5G:cputype=E5-2670
+#PBS -j oe
+#PBS -l walltime=00:10:00
+
+module load intel
+module load mpt
+
+cd $PBS_O_WORKDIR
+cd summa
+
+./sequential_mkl 10000

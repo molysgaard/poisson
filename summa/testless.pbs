@@ -1,0 +1,13 @@
+#!/bin/bash -l
+#PBS -N pless
+#PBS -l select=2:mpiprocs=2:ncpus=12:mem=5G:cputype=E5-2670
+#PBS -j oe
+#PBS -l walltime=00:10:00
+
+module load intel
+module load mpt
+
+cd $PBS_O_WORKDIR
+cd summa
+
+mpiexec_mpt ./summa_icc 2 5000 6
