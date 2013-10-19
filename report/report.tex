@@ -134,7 +134,90 @@ in applications such as weather forcasts.
 After some research it was found that that there exists a algorithm for this, \cite{summa}, discovered in 1997.
 
 \subsection{The SUMMA algorithm}
-TODO: Explain the SUMMA algorithm
+The SUMMA algorithm first appeared in the paper\cite{summa} with the same name in 1997.
+It was discovered by Robert A. van de Geijn and Jerrell Watts during research founded by
+NASA and Intel. The algorithm very quickly spread because of its relative simplicity compared
+to current paralell matrix multipyl algorithms. An explenation of the algorithm follows.
+
+In the SUMMA algorithm you are trying to form the matrix product
+\[
+C = AB.
+\]
+Where A is $n \times k$, B $k \times m$ and C $n \times m$ matrices.
+Letting $a_{i,j}$ be the element on row $i$ and column $j$ in matrix $A$
+we can write the computation as
+\[
+c_{i,j} = \sum_k a_{i,k} b_{k,j}.
+\]
+This is called the inner product formulation of matrix multiply since each $c_{i,j}$ is
+an inner product of a row in $A$ and a column in $B$.
+
+Although this is the normal formulation of matrix multiplication there exists another way to
+form it named the outer product formulation.
+Letting $\bar{a_i}$ be column $i$ in the matrix $A$ and $\bar{b_i}$ be row $i$ in $B$ we can write
+the outer product formulation as follows
+\[
+AB = \begin{pmatrix}
+	\bar{a_1} & \bar{a_2} & \dots & \bar{a_n}\\
+     \end{pmatrix}
+     \begin{pmatrix}
+	\bar{b_1}\\
+	\bar{b_2}\\
+	\vdots\\
+	\bar{b_n}\\
+     \end{pmatrix}
+     =\sum_{i=1}^n a_i \otimes b_i.
+\]
+The neat thing about the outer product formulation is that this formulation applies even if the
+elements of the matrices $A$ and $B$ are again matrices. We say that $A$ and $B$ are blocked
+matrices.
+
+Your compute nodes, $p$, are arranged in a two dimensional grid so that they have responsebility for
+for blocks of $A$, $B$ and $C$.
+
+The compute nodes are arranged in a grid
+\begin{center}
+\begin{tabular}{| c c c | c c c |}
+\hline
+&&&&&\\
+&$p_{1,1}$ &&& $p_{1,2}$&\\
+&&&&&\\
+\hline
+&&&&&\\
+&$p_{2,1}$ &&& $p_{2,2}$&\\
+&&&&&\\
+\hline
+\end{tabular}
+\end{center}
+
+in such a way that for a given matrix
+\[
+A=\begin{bmatrix}
+a_{1,1} & a_{1,2} & a_{1,3} & a_{1,4} \\
+a_{2,1} & a_{2,2} & a_{2,3} & a_{2,4} \\
+a_{3,1} & a_{3,2} & a_{3,3} & a_{3,4} \\
+a_{4,1} & a_{4,2} & a_{4,3} & a_{4,4} \\
+\end{bmatrix}
+\]
+the compute node $p_{1,1}$ has
+\[
+\begin{bmatrix}
+a_{1,1} & a_{1,2} \\
+a_{2,1} & a_{2,2} \\
+\end{bmatrix}
+\]
+in memory. We call a compute nodes part of the matrix a block, and say the matrix $A$ is composed of several blocks. The same logic follows for the other nodes.
+
+Pseudocode for each node is now
+\begin{align*}
+  &C_{i,j} = 0\\
+  &\text{for } l=0 \text{ to } k-1\\
+  &\text{\enskip\enskip broadcast my part of } \bar{a_l} \text{ within my row}\\
+  &\text{\enskip\enskip broadcast my part of } \bar{b_l} \text{ within my column}\\
+  &\text{\enskip\enskip }C_{i,j} = C_{i,j} + \bar{a_l} \otimes \bar{b_l}\\
+\end{align*}
+
+
 
 \section{Implementations}
 Two different implementations of the algorithm was done.
@@ -413,7 +496,7 @@ of all the syncronization introdused in the distributed algoritm.
 	\item Scattering and gathering the matrices from the master node proved prone to error. Not because of bad libraries or programming errors. The challenge was creating the correct mapping in a general case from a contigous array to smaller blocked contigous arrays at the low abstraction level that C works.
 	\item Implementing a really fast sequential version is not trivial since most of the tools for fast numerical code, BLAS, LAPACK etc. do paralellization without you knowing it. For example the first sequential version of the program used the cblas\_dgemm routine. When this routine was profiled it was experienced that the routine forked off several threads to do it's work, thus these library functions could not be used for a sequential implementation.
 	\item Found out that increasing the number of cores available to the intel MKL compared to the number of MPI cores does not improve performance.
-	\item TODO: write about the SUMMA algorithm - write about the above point -
+	\item TODO: write about the SUMMA algorithm - write about the above point - bundle up a script that is easy to run for submission - add a README to the code.
 \end{enumerate}
 
 \section{Mathematical derivation of solution method}
