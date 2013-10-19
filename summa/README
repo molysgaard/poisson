@@ -1,0 +1,40 @@
+Poisson Solver
+
+Required libraries for desktop version:
+OpenMPI
+CBLAS
+
+
+
+Required software for plotting and analysis:
+Octave or Matlab
+
+Ubuntu/Debian packages for this:
+sudo apt-get install libopenmpi-dev libgsl0-dev octave
+
+Compilation:
+make
+
+To run the sequential implementation:
+
+# runs the sequential implementation. Unless you have a machine with one core this will run on more than one core.
+./sequential 4000
+
+To run the distributed implementation:
+
+# runs the MPI implementation with n=4000, mpiprocs=4 in a 2x2 grid, each mpiproc have 3 openmp threads.
+mpirun -n 4 ./summa 2 2000 3
+
+To view the solutions first start octave from the summa folder.
+
+octave
+
+Then inside octave run:
+
+plotPoisson(4000)
+
+and
+
+plotPoissonSeq(4000)
+
+to view the paralell and sequential solutions. Take note that the sequential and paralell problem may have different initial conditions and thus look different.
