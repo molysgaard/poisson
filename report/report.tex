@@ -25,14 +25,14 @@
 \maketitle
 
 \section{introduction}
-The first use of comptuers was for doing simple calculations at a higher rate
+The first use of computers was for doing simple calculations at a higher rate
 than a human possibly could. Today computers are no longer just calculators but
 present everywhere around us, intergrating to our lives to a bigger and bigger extent.
-Even though we have past the era of big calculators scientific computing and the use
-of computers for doing ever bigger calculations is just increasing. Today it is
-often much cheaper to do numerical experiments, simulation the nature, instead of
+We are past the era of looking on computers as big calculators, but in spite of that
+scientific computing and the use of computers for doing ever bigger calculations is just increasing.
+Today it is often much cheaper to do numerical experiments, simulating the nature, instead of
 setting up a real experiment. Numerical experiments are usually cheaper, less
-dangorous and easier to analyse the results from. Fields that use this extencively
+dangerous and easier to analyse the results from. Fields that use this extensively
 are military, for nuclear explosion simulations and metrologists for simulation the weather.
 
 Almost all computer aided design is today tested numerically before any physical model is made.
@@ -139,7 +139,7 @@ It was discovered by Robert A. van de Geijn and Jerrell Watts during research fo
 NASA and Intel. The algorithm very quickly spread because of its relative simplicity compared
 to current paralell matrix multipyl algorithms. An explenation of the algorithm follows.
 
-In the SUMMA algorithm you are trying to form the matrix product
+In the SUMMA algorithm you form the matrix product
 \[
 C = AB.
 \]
@@ -168,12 +168,9 @@ AB = \begin{pmatrix}
      \end{pmatrix}
      =\sum_{i=1}^n a_i \otimes b_i.
 \]
-The neat thing about the outer product formulation is that this formulation applies even if the
+A nice property is that the formulation applies even if the
 elements of the matrices $A$ and $B$ are again matrices. We say that $A$ and $B$ are blocked
 matrices.
-
-Your compute nodes, $p$, are arranged in a two dimensional grid so that they have responsebility for
-for blocks of $A$, $B$ and $C$.
 
 The compute nodes are arranged in a grid
 \begin{center}
@@ -206,7 +203,7 @@ a_{1,1} & a_{1,2} \\
 a_{2,1} & a_{2,2} \\
 \end{bmatrix}
 \]
-in memory. We call a compute nodes part of the matrix a block, and say the matrix $A$ is composed of several blocks. The same logic follows for the other nodes.
+in memory. We call a compute nodes part of the matrix a block, and say the matrix $A$ is composed of several blocks. The same logic follows for the other nodes and matrices in the algorithm.
 
 Pseudocode for each node is now
 \begin{align*}
@@ -216,8 +213,20 @@ Pseudocode for each node is now
   &\text{\enskip\enskip broadcast my part of } \bar{b_l} \text{ within my column}\\
   &\text{\enskip\enskip }C_{i,j} = C_{i,j} + \bar{a_l} \otimes \bar{b_l}\\
 \end{align*}
+This leaves us with $2k$ broadcast operations for the whole algorithm. This is to
+inefficient for the algorithm to be practical but there exists a pipelining approach
+that can be used instead of broadcasting. In this version, each round of the algorithm
+the current column in A and row in B is sendt to next node in the row and column respectively.
+The nodes on the end send to the first nodes. One can say that the nodes in each row and columns
+are organized in a logical ring. This ring is used to pass on information each step. Using this
+approrach the communcation is greatly reduced.
 
+Another benefit is that on a good MPI implementation
+with dedicated hardware this lets the algorithm send data forward in the ring asyncronous while
+it computes a local outer product. This lessens the waiting for syncronization.
 
+The SUMMA implementation in this report is a costomized version of the one in the original paper\cite{summa}.
+It includes the blocking and pipelining optimizations mentioned above.
 
 \section{Implementations}
 Two different implementations of the algorithm was done.
@@ -395,6 +404,23 @@ and minimum measured value and any circles shows outliers. Outliers are measurem
 that are so far from the rest that they probably are the product of an error,
 in this case another process from another HPC job interfering with our program.
 
+\subsection{Ratio between SMP and distributed memory paralellism}
+This application consists of both distributed memory on the high
+level of the algorithm and SMP in the internal dgemm routines used
+by each MPI process. Because of this it was checked what ratio of
+\[
+\frac{\text{MPI processes}}{\text{total cores}}
+\]
+that performed optimaly. Everyting from 6 cores SMP per MPI process to
+2 cores SMP per MPI process was tried and in the end only 2 cores OpenMP
+paralellism per MPI process performed best. Between double and triple the
+speed compared to 6 cores per MPI process. This does not seem intuitive
+because SMP paralellism usually is faster compared to distributed  memory.
+Things like checking Intels MKL documentation\footnote{\url{http://software.intel.com/en-us/articles/intel-math-kernel-library-intel-mkl-using-intel-mkl-with-threaded-applications#3}} and manually setting the
+\verb+OMP_NUM_THREADS+ setting in the PBS job description did not change the running time.
+Theories go from Intels MKL not paralellizing fully on all available cores to maybe spawning too many threads.
+Future studies should be dedicated to this maybe unlocking even higher performance.
+
 \subsection{Sequential implementation wall time}
 \begin{figure}[H]
   \begin{center}
@@ -454,7 +480,7 @@ Secondly, the sequential implementation did not use any hardware dependent
 optimizations. Most importantly the code was not vectorized. The parallel
 implementation used MKL which for dgemm uses AVX2 instructions to do
 4 double precition floating point operations at the same time. Because of
-this up to 4 times the speedup can be claimed to come from vectorization.
+this 2 to 4 times the speedup can be claimed to come from vectorization.
 
 Lastly and most importantly. The sequential implementation runs on one core. This
 gives it acces to only that cores cache. Taking a closer look at the datasheet
@@ -476,16 +502,34 @@ When the chache is saturated the core will frequently have to go to RAM to get n
 acces is several orders of magnitude slower that accessing the cache and the program sees a big
 slowdown because of it.
 
-Adding all these factors together, 50 cores, 4 times vectorization and at least 5 to 10 times slower memory access
+Adding all these factors together, 50 cores, 2 to 4 times vectorization and at least 5 to 10 times slower memory access
 gives numbers close to
 \[
-50 \times 4 \times 5 = 250 < \text{speedup} < 50 \times 4 \times 10 = 500.
+50 \times 2 \times 5 = 500 < \text{speedup} < 50 \times 4 \times 10 = 2000.
 \]
 This means that without taking into account the syncronization overhead
-the parallel algorithm could see between 250 and 500 times speedup in the given example.
+the parallel algorithm could see between 500 and 2000 times speedup in the given example.
 The reason we are seeing about 160 is because
 of all the syncronization introdused in the distributed algoritm.
 
+\subparagraph{Speedup as a function of MPI processes}
+The same considerations apply to the speedup as a function of MPI processes.
+To explain the speedup of 200 you have to take into account that for each MPI
+process there where 2 cores allocated. This means we where using 64 cores.
+\[
+64 \times 2 \times 5 = 640 < \text{speedup} < 64 \times 4 \times 10 = 2560.
+\]
+There is also here a considerable loss of speed because of syncronization.
+Nevertheless the speedup results are much better than expected.
+
+\subsection{Feature suggestions and research questions}
+The only big unansvered question is why a high level of SMP paralellism did not give better
+results than distributed memory paralellism. The highly hardware,
+library and compiler dependent nature of this problem makes it hard
+to debug on QUTs HPC cluster because of limited profiling possebilities
+etc. in a distributed MPI environment. Also the fact that you never are
+logged in to the cluster nodes itself where your program is running makes
+the whole debugging a lot harder.
 
 \section{Journal}
 \begin{enumerate}
