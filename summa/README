@@ -4,6 +4,7 @@ All lines starting with '$' are command lines ment to be run in a terminal.
 All lines starting with '#' are comments/documentation to a command line.
 
 Required libraries for desktop version:
+GNU Make
 GCC
 OpenMPI
 GSL-CBLAS

@@ -556,29 +556,17 @@ this report. The objective of making a general, fast and massively scalable
 Poisson solver was achieved. Acknowledgements to QUT HPC staff for being
 very helpfull with integration of the software into their platform.
 
-\section{Journal}
-\begin{enumerate}
-	\item Started with Haskell. Managed to create a sequential that was on par with C and had much better readability and consiseness.
-	\item Started looking at the accelerate library for Haskell. Managed to implement a matrix multiply in it but it lacked performance because of the non-flat nature of the matrix multiply algorithm in accelerate. This made it solver than a sequential C implementation.
-	\item Contacted author of accelerate to see if there was any way to mend the problems but it turned out to be a limitation in the embedded language that accelerate is. There is no way to express the type of computation that matrix multiply is effeciently. This is because of the intermidiat dot-product you calculate when doing matrix multiply. Accelerate is extremely good at things that it's made for, like stencil computations. This was also looked at but because the application was to be solving extremely large linear systems they would not fit in the memory of one GPU.
-	\item First version of the SUMMA algorithm used FORTAN routines for the matrix multipyl and array copying. Since FORTRAN ararys are column-major instead of row-major as in C this lead to unpredictable and really hard to debug problems in the algorithm.
-	\item Scattering and gathering the matrices from the master node proved prone to error. Not because of bad libraries or programming errors. The challenge was creating the correct mapping in a general case from a contigous array to smaller blocked contigous arrays at the low abstraction level that C works.
-	\item Implementing a really fast sequential version is not trivial since most of the tools for fast numerical code, BLAS, LAPACK etc. do paralellization without you knowing it. For example the first sequential version of the program used the cblas\textunderscore dgemm routine. When this routine was profiled it was experienced that the routine forked off several threads to do it's work, thus these library functions could not be used for a sequential implementation.
-	\item Found out that increasing the number of cores available to the intel MKL compared to the number of MPI cores does not improve performance.
-	\item TODO: write about the SUMMA algorithm - write about the above point - bundle up a script that is easy to run for submission - add a README to the code.
-\end{enumerate}
-
 \section{Appendix: Developed code}
 All the code developed for this project is open sourced and available
 in a version controled repository on the authors GitHub page \cite{github}.
 The code run on the QUT HPC cluster is available under the summa folder. The \LaTeX source of this
-report is available under the folder report. All the timing data together with the R-script used
-for analysis of this is available under the folder analysis. There is also a working implementation of
-matrix multiply written in the accelerate domain specific language in Haskell under the diagtest/diag-haskell
-folder. The doc folder contains reference documentation and papers used during the creation of this report.
-\begin{em}To run a desktop version of the application run on the HPC cluster follow the README in the summa folder.\end{em}
+report is available under the folder \verb+report+. All the timing data together with the R-script used
+for analysis of this is available under the folder \verb+analysis+. There is also a working implementation of
+matrix multiply written in the accelerate domain specific language in Haskell under the \verb+diagtest/diag-haskell+
+folder. The \verb+doc+ folder contains reference documentation and papers used during the creation of this report.
+\begin{em}To run a desktop version of the application run on the HPC cluster follow the \verb+README+ in the \verb+summa+ folder.\end{em}
 
-\section{Mathematical derivation of solution method}
+\section{Appendix: Derivation of solution method}
 \label{sec:math_der}
 Poisson's equation is given as
 \[
