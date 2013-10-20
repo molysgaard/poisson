@@ -1,16 +1,18 @@
-Poisson Solver
+Poisson Solver - Written by Morten Olsen Lysgaard October 2013
+
+All lines starting with '$' are command lines ment to be run in a terminal.
+All lines starting with '#' are comments/documentation to a command line.
 
 Required libraries for desktop version:
+GCC
 OpenMPI
-CBLAS
-
-
+GSL-CBLAS
 
 Required software for plotting and analysis:
 Octave or Matlab
 
 Ubuntu/Debian packages for this:
-sudo apt-get install libopenmpi-dev libgsl0-dev octave
+$ sudo apt-get install libopenmpi-dev libgsl0-dev octave
 
 Compilation:
 make
@@ -18,23 +20,28 @@ make
 To run the sequential implementation:
 
 # runs the sequential implementation. Unless you have a machine with one core this will run on more than one core.
-./sequential 4000
+# this is because of the threaded nature of GSL-CBLAS
+$ ./sequential 4000
 
 To run the distributed implementation:
 
 # runs the MPI implementation with n=4000, mpiprocs=4 in a 2x2 grid, each mpiproc have 3 openmp threads.
-mpirun -n 4 ./summa 2 2000 3
+$ mpirun -n 4 ./summa 2 2000 3
 
 To view the solutions first start octave from the summa folder.
 
-octave
+# starts octave
+$ octave
 
 Then inside octave run:
 
-plotPoisson(4000)
+# loads the data from the parallel run, the u.m file, and plots them. Also saves the data in the variable par.
+$ par = plotPoisson(4000);
 
-and
+# loads the data from the sequential run, the u-seq.m file, and plots them. Also saves the data in the variable seq.
+$ seq = plotPoissonSeq(4000);
 
-plotPoissonSeq(4000)
+# show the biggest element difference from the parallel and the sequential run
+$ max(max(abs(seq-par)))
 
-to view the paralell and sequential solutions. Take note that the sequential and paralell problem may have different initial conditions and thus look different.
+# the plotPoisson and plotPoissonSeq functions also saves the plots as .eps files in the current working directory.

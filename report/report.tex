@@ -56,7 +56,7 @@ euclidean space. The equation is often written as
 \]
 In two dimensions the equation can be written as
 \[
--\left( \frac{\partial^2}{\partial x^2} + \frac{\partial^2}{\partial y^2} \right) u(x,y) = f(x,y).
+-\left( \dd{}{x} + \dd{}{y} \right) u(x,y) = f(x,y).
 \]
 
 In section \ref{sec:math_der} we derive the chosen solution method of this equation. 
@@ -568,6 +568,16 @@ very helpfull with integration of the software into their platform.
 	\item TODO: write about the SUMMA algorithm - write about the above point - bundle up a script that is easy to run for submission - add a README to the code.
 \end{enumerate}
 
+\section{Appendix: Developed code}
+All the code developed for this project is open sourced and available
+in a version controled repository on the authors GitHub page \cite{github}.
+The code run on the QUT HPC cluster is available under the summa folder. The \LaTeX source of this
+report is available under the folder report. All the timing data together with the R-script used
+for analysis of this is available under the folder analysis. There is also a working implementation of
+matrix multiply written in the accelerate domain specific language in Haskell under the diagtest/diag-haskell
+folder. The doc folder contains reference documentation and papers used during the creation of this report.
+\begin{em}To run a desktop version of the application run on the HPC cluster follow the README in the summa folder.\end{em}
+
 \section{Mathematical derivation of solution method}
 \label{sec:math_der}
 Poisson's equation is given as
@@ -581,7 +591,7 @@ euclidean space. The equation is often written as
 \]
 In two dimensions the equation can be written as
 \[
--\left( \frac{\partial^2}{\partial x^2} + \frac{\partial^2}{\partial y^2} \right) u(x,y) = f(x,y).
+-\left( \dd{}{x} + \dd{}{y}\right) u(x,y) = f(x,y).
 \]
 
 This equation is continuous and to work with it in the computer some discretized approximation has
@@ -629,11 +639,11 @@ Then,
 \end{align*}
 and thus,
 \[
-\frac{1}{h^2}(TU)_{i,j} \approx - \left(\frac{\partial^2 u}{\partial x^2}\right)_{i,j}.
+\frac{1}{h^2}(TU)_{i,j} \approx - \left( \dd{u}{x} \right)_{i,j}.
 \]
 By the same argument
 \[
-\frac{1}{h^2}(UT)_{i,j} \approx - \left(\frac{\partial^2 u}{\partial y^2}\right)_{i,j}.
+\frac{1}{h^2}(UT)_{i,j} \approx - \left(\dd{u}{y}\right)_{i,j}.
 \]
 
 Our finite difference scheme can thus be written as
@@ -671,6 +681,9 @@ Multiplying from right with $Q$ and left with $Q^\top$ gives
 
 
 \begin{thebibliography}{9}
+
+\bibitem{github}
+  \url{https://github.com/molysgaard/poisson}
 
 \bibitem{summa}
   Robert A. van de Geijn and Jerrell Watts (1997)

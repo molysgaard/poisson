@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include <math.h>
-//#include <gsl/gsl_cblas.h>
+#include <gsl/gsl_cblas.h>
 
 #define min(x,y) ( (x) < (y) ? (x) : (y) )
 
@@ -112,8 +112,8 @@ int main(int argc, char* argv[]){
       G[n*i+j] = 0.0;
     }
   }
-  for(i=0; i<n/6; i++){
-    for(j=0; j<n/6; j++){
+  for(i=0; i<n/2; i++){
+    for(j=0; j<n/2; j++){
       G[n*i+j] = h*1.0;
     }
   }
@@ -122,27 +122,27 @@ int main(int argc, char* argv[]){
   clock_gettime(CLOCK_MONOTONIC, &before);
 
   // tmp = G * Q
-  //cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, n, n, n, alpha, G, n, eigenVectors, n, beta, tmp, n);
+  cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, n, n, n, alpha, G, n, eigenVectors, n, beta, tmp, n);
   dmm(n, G, eigenVectors, tmp);
 
   //double *Gmod = G;
   double *Gmod = malloc(n*n*sizeof(double));
 
   // Gmod = Q' * tmp
-  //cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, n, n, n, alpha, transEigenVectors, n, tmp, n, beta, Gmod, n);
-  dmm(n, transEigenVectors, tmp, Gmod);
+  cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, n, n, n, alpha, transEigenVectors, n, tmp, n, beta, Gmod, n);
+  //dmm(n, transEigenVectors, tmp, Gmod);
 
   // calc Umod
   double *Umod = calcUmod(n, Gmod, lambda);
 
   // tmp = Q * Umod
-  //cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, n, n, n, alpha, eigenVectors, n, Umod, n, beta, tmp, n);
-  dmm(n, eigenVectors, Umod, tmp);
+  cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, n, n, n, alpha, eigenVectors, n, Umod, n, beta, tmp, n);
+  //dmm(n, eigenVectors, Umod, tmp);
 
   double *U = Umod;
   // U = tmp * Q'
-  //cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, n, n, n, alpha, tmp, n, transEigenVectors, n, beta, U, n);
-  dmm(n, tmp, eigenVectors, U);
+  cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, n, n, n, alpha, tmp, n, transEigenVectors, n, beta, U, n);
+  //dmm(n, tmp, eigenVectors, U);
 
   clock_gettime(CLOCK_MONOTONIC, &after);
   
@@ -150,9 +150,9 @@ int main(int argc, char* argv[]){
   printf("n, time\n");
   printf("%d, %f\n", n, ((double) (after.tv_sec - before.tv_sec)) + (after.tv_nsec - before.tv_nsec)/10e9);
 
-  //FILE *fu = fopen("u-seq.m", "w");
-  //fwrite(U, sizeof(double), n*n, fu);
-  //fclose(fu);
+  FILE *fu = fopen("u-seq.m", "w");
+  fwrite(U, sizeof(double), n*n, fu);
+  fclose(fu);
 
   return 0;
 }
