@@ -468,8 +468,7 @@ will now be explained.
 \subparagraph{Speedup as a function of problem size}
 Even though the data is noisy there seems to be a quite constant
 speedup of 15-20 times running on 
-To explain the speedup of around 160 the following factors has
-to be taken into consideration.
+To explain this the following factors has to be taken into consideration.
 
 5 nodes where used. Each node had
 5 mpi processes and 10 cores available. The remaining 5 cores on each
@@ -517,11 +516,11 @@ of all the synchronization introduced in the distributed algorithm.
 
 \subparagraph{Speedup as a function of MPI processes}
 The same considerations apply to the speedup as a function of MPI processes.
-To explain the speedup of 200 you have to take into account that for each MPI
-process there where 2 cores allocated. This means we where using 64 cores.
+To explain the speedup of 30 you have to take into account that for each MPI
+process there where 2 cores allocated. This means we where using 72 cores.
 \[
 %64 \times 2 \times 5 = 640 < \text{speedup} < 64 \times 4 \times 10 = 2560.
-64 \times 2 = 128 < \text{speedup} < 64 \times 5 = 320.
+72 \times 2 = 144 < \text{speedup} < 72 \times 5 = 360.
 \]
 There is also here a considerable loss of speed because of synchronization.
 Nevertheless the speedup seem very linear following the formula

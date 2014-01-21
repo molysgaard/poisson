@@ -17,8 +17,5 @@ sequential: sequential.c
 sequential_icc: sequential.c
 	icc -O2 sequential.c -lm -lrt -o sequential_icc
 
-run: summa
-	mpirun -n 4 summa 2 4000 2
-
 clean:
-	rm summa summa_icc sequential sequential_mkl u.m u-seq.m
+	rm summa summa_icc sequential sequential_mkl sequential_icc u.m u-seq.m poissonPar.eps
